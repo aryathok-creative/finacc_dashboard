@@ -23,19 +23,19 @@
 <div id="loginScreen" class="flex items-center justify-center min-h-[90vh] px-4">
   <div class="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
     <div class="flex flex-col items-center mb-6">
-      <div class="w-14 h-14 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-xl mb-3">PMU</div>
+      <img src="logo.png" alt="Logo" class="h-14 mb-3 object-contain" />
       <h1 class="text-lg font-semibold text-slate-800">Finance Dashboard</h1>
       <p class="text-sm text-slate-500">PT Persada Medika Utama</p>
     </div>
     <div class="space-y-3">
       <div>
         <label class="text-xs font-medium text-slate-600">Email</label>
-        <input id="loginEmail" type="email" placeholder="nama@pmu.co.id"
+        <input id="loginEmail" type="email" placeholder="nama@pmu.co.id" onkeydown="if(event.key==='Enter') handleLogin()"
           class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
       </div>
       <div>
         <label class="text-xs font-medium text-slate-600">Password</label>
-        <input id="loginPassword" type="password" placeholder="••••••••"
+        <input id="loginPassword" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()"
           class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
       </div>
       <p id="loginError" class="text-xs text-red-600 hidden"></p>
@@ -43,10 +43,6 @@
         class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5 transition">
         Masuk
       </button>
-    </div>
-    <div class="mt-5 text-xs text-slate-400 border-t border-slate-100 pt-4">
-      Akun demo (sandbox): <br/>
-      direksi@pmu.co.id / demo123 &nbsp;·&nbsp; staf@pmu.co.id / demo123
     </div>
   </div>
 </div>
@@ -71,7 +67,7 @@
   <!-- header -->
   <div class="flex items-center justify-between mb-6">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-sm">PMU</div>
+      <img src="logo.png" alt="Logo" class="h-9 object-contain" />
       <div>
         <h1 class="font-semibold text-slate-800 text-base leading-tight">Ringkasan Eksekutif</h1>
         <p id="periodeLabel" class="text-xs text-slate-500">—</p>
@@ -161,6 +157,14 @@ let authToken = null;
 let currentUser = null;
 let chartTrend = null;
 let chartSegmen = null;
+
+// Sembunyikan penanda sandbox begitu tersambung ke data asli.
+if (!MOCK_MODE) {
+  var _banner = document.getElementById("sandboxBanner");
+  if (_banner) _banner.remove();
+  var _demoHint = document.getElementById("demoHint");
+  if (_demoHint) _demoHint.remove();
+}
 
 /* ============================================================
  * LAPISAN API — sengaja dipisah supaya switch mock <-> real
