@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finance Dashboard — PT Persada Medika Utama</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- Dummy data untuk mode sandbox (MOCK_MODE=true). Hapus/abaikan saat MOCK_MODE=false. -->
+<script src="dummy-data.js"></script>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- ============ BANNER MODE SANDBOX ============ -->
+<div id="sandboxBanner" class="bg-amber-400 text-amber-950 text-center text-sm font-medium py-1 px-2">
+  MODE SANDBOX — data di halaman ini adalah data dummy, tidak terhubung ke Google Sheet asli.
+</div>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="flex items-center justify-center min-h-[90vh] px-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
+    <div class="flex flex-col items-center mb-6">
+      <div class="w-14 h-14 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-xl mb-3">PMU</div>
+      <h1 class="text-lg font-semibold text-slate-800">Finance Dashboard</h1>
+      <p class="text-sm text-slate-500">PT Persada Medika Utama</p>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs font-medium text-slate-600">Email</label>
+        <input id="loginEmail" type="email" placeholder="nama@pmu.co.id"
+          class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-600">Password</label>
+        <input id="loginPassword" type="password" placeholder="••••••••"
+          class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+      </div>
+      <p id="loginError" class="text-xs text-red-600 hidden"></p>
+      <button onclick="handleLogin()"
+        class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5 transition">
+        Masuk
+      </button>
+    </div>
+    <div class="mt-5 text-xs text-slate-400 border-t border-slate-100 pt-4">
+      Akun demo (sandbox): <br/>
+      direksi@pmu.co.id / demo123 &nbsp;·&nbsp; staf@pmu.co.id / demo123
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: PAKSA GANTI PASSWORD ============ -->
+<div id="mustChangeModal" class="hidden fixed inset-0 bg-black/40 items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-lg p-6 w-full max-w-sm">
+    <h2 class="font-semibold text-slate-800 mb-1">Ganti Password</h2>
+    <p class="text-xs text-slate-500 mb-4">Ini login pertama Anda / password baru saja di-reset. Silakan buat password baru.</p>
+    <div class="space-y-3">
+      <input id="cpLama" type="password" placeholder="Password lama" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+      <input id="cpBaru" type="password" placeholder="Password baru (min. 6 karakter)" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+      <input id="cpKonfirmasi" type="password" placeholder="Konfirmasi password baru" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+      <button onclick="handleGantiPassword()" class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboardScreen" class="hidden max-w-6xl mx-auto px-4 py-6">
+
+  <!-- header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-sm">PMU</div>
+      <div>
+        <h1 class="font-semibold text-slate-800 text-base leading-tight">Ringkasan Eksekutif</h1>
+        <p id="periodeLabel" class="text-xs text-slate-500">—</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="userBadge" class="text-xs text-slate-500"></span>
+      <button onclick="handleLogout()" class="text-xs text-slate-500 hover:text-red-600 border border-slate-200 rounded-lg px-3 py-1.5">Keluar</button>
+    </div>
+  </div>
+
+  <!-- staff-only: toggle data siap -->
+  <div id="statusPanel" class="hidden mb-6 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+    <div>
+      <p class="text-sm font-medium text-slate-800">Status Data — Direksi</p>
+      <p id="statusText" class="text-xs text-slate-500 mt-0.5">Memuat status...</p>
+    </div>
+    <button id="statusToggleBtn" onclick="handleToggleStatus()"
+      class="text-sm font-medium rounded-lg px-4 py-2 transition">…</button>
+  </div>
+
+  <!-- direksi: data belum siap -->
+  <div id="notReadyPanel" class="hidden bg-white border border-slate-200 rounded-xl p-10 text-center">
+    <p class="text-slate-600 font-medium">Data bulan ini belum dipublikasikan oleh staf Finacc.</p>
+    <p class="text-slate-400 text-sm mt-1">Silakan cek kembali nanti.</p>
+  </div>
+
+  <!-- isi dashboard -->
+  <div id="dataPanel" class="hidden">
+    <!-- KPI cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs text-slate-500">Pendapatan</p>
+        <p id="kpiPendapatan" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <p id="kpiPendapatanSub" class="text-xs text-slate-400 mt-1">—</p>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs text-slate-500">Laba Rugi</p>
+        <p id="kpiLabaRugi" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <p id="kpiLabaRugiSub" class="text-xs text-slate-400 mt-1">—</p>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs text-slate-500">EBITDA Margin</p>
+        <p id="kpiEbitda" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs text-slate-500">Kas Akhir</p>
+        <p id="kpiKas" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+      </div>
+    </div>
+
+    <!-- charts -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="md:col-span-2 bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-sm font-medium text-slate-700 mb-2">Tren Pendapatan & Laba Rugi (miliar Rp)</p>
+        <canvas id="chartTrend" height="120"></canvas>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-sm font-medium text-slate-700 mb-2">Revenue per Segmen</p>
+        <canvas id="chartSegmen" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- anggaran vs realisasi -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+      <p class="text-sm font-medium text-slate-700 mb-2">Anggaran vs Realisasi Pendapatan</p>
+      <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+        <div id="anggaranBar" class="bg-teal-600 h-3 rounded-full" style="width:0%"></div>
+      </div>
+      <p id="anggaranText" class="text-xs text-slate-500 mt-2">—</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+ * KONFIGURASI
+ * ============================================================
+ * MOCK_MODE = true  -> pakai dummy-data.js, TIDAK memanggil Apps Script.
+ * MOCK_MODE = false -> panggil API_URL (Web App Apps Script) yang sesungguhnya.
+ * Ubah ke false + isi API_URL saat siap deploy ke data produksi.
+ */
+const MOCK_MODE = true;
+const API_URL = "https://script.google.com/macros/s/AKfycbz5RspCLhpVa432MoXH_iZ_8gJi7I8pKZvPy5g8InVlu_r_9-xE2Vem3nDAU6UTLrBu/exec";
+
+let authToken = null;
+let currentUser = null;
+let chartTrend = null;
+let chartSegmen = null;
+
+/* ============================================================
+ * LAPISAN API — sengaja dipisah supaya switch mock <-> real
+ * tidak perlu ubah kode UI di bawahnya sama sekali.
+ * ============================================================ */
+async function _post(payload) {
+  if (MOCK_MODE) return _mockPost(payload);
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+  const j = await res.json();
+  if (j && j.needLogin) { alert("Sesi berakhir, silakan login ulang."); location.reload(); throw new Error("Sesi berakhir"); }
+  return j;
+}
+async function apiPost(payload) { payload.token = authToken; return _post(payload); }
+
+/* ---- mock backend: meniru persis kontrak Code.gs asli ---- */
+async function _mockPost(payload) {
+  await _delay(250); // simulasi latency jaringan
+  const action = payload.action;
+
+  if (action === "checkLogin") {
+    const u = DUMMY_USERS.find(x => x.email.toLowerCase() === String(payload.email).toLowerCase()
+      && x.password === payload.password);
+    if (!u) return { ok: false, error: "Email atau password salah" };
+    const token = "mock-" + Math.random().toString(36).slice(2);
+    return { ok: true, token, user: { email: u.email, nama: u.nama, role: u.role, mustChange: u.mustChange } };
+  }
+  if (action === "gantiPassword") {
+    if (payload.passwordBaru.length < 6) return { ok: false, error: "Password baru minimal 6 karakter." };
+    return { ok: true }; // di mock tidak perlu benar2 ubah state DUMMY_USERS
+  }
+  if (action === "getStatus") {
+    return { ok: true, ...DUMMY_STATUS };
+  }
+  if (action === "setStatus") {
+    if (currentUser.role !== "staff" && currentUser.role !== "admin")
+      return { ok: false, error: "Hanya staf Finacc/admin yang boleh mengubah status data siap." };
+    DUMMY_STATUS.dataSiap = !!payload.dataSiap;
+    DUMMY_STATUS.updatedBy = currentUser.email;
+    DUMMY_STATUS.updatedAt = new Date().toISOString();
+    return { ok: true };
+  }
+  if (action === "getRingkasanEksekutif") {
+    if (currentUser.role === "direksi" && !DUMMY_STATUS.dataSiap) {
+      return { ok: true, dataSiap: false, periode: DUMMY_STATUS.periode };
+    }
+    return { ok: true, dataSiap: true, ...DUMMY_RINGKASAN };
+  }
+  return { ok: false, error: "Action mock tidak dikenal: " + action };
+}
+
+/* ============================================================
+ * FORMAT HELPER
+ * ============================================================ */
+function fmtRupiah(v) {
+  if (v === null || v === undefined) return "—";
+  return "Rp " + (v / 1e9).toLocaleString("id-ID", { maximumFractionDigits: 2 }) + " M";
+}
+function fmtPersen(v) { return (v === null || v === undefined) ? "—" : v.toFixed(1) + "%"; }
+
+/* ============================================================
+ * LOGIN / LOGOUT
+ * ============================================================ */
+async function handleLogin() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errEl = document.getElementById("loginError");
+  errEl.classList.add("hidden");
+
+  const j = await apiPost({ action: "checkLogin", email, password });
+  if (!j.ok) { errEl.textContent = j.error || "Login gagal"; errEl.classList.remove("hidden"); return; }
+
+  authToken = j.token;
+  currentUser = j.user;
+
+  if (currentUser.mustChange) {
+    document.getElementById("mustChangeModal").classList.remove("hidden");
+    document.getElementById("mustChangeModal").classList.add("flex");
+    return; // dashboard dimuat setelah ganti password
+  }
+  showDashboard();
+}
+
+async function handleGantiPassword() {
+  const lama = document.getElementById("cpLama").value;
+  const baru = document.getElementById("cpBaru").value;
+  const konfirmasi = document.getElementById("cpKonfirmasi").value;
+  if (baru.length < 6) return alert("Password baru minimal 6 karakter.");
+  if (baru !== konfirmasi) return alert("Konfirmasi tidak cocok.");
+  const j = await apiPost({ action: "gantiPassword", passwordLama: lama, passwordBaru: baru });
+  if (!j.ok) return alert(j.error || "Gagal mengganti password.");
+  document.getElementById("mustChangeModal").classList.add("hidden");
+  document.getElementById("mustChangeModal").classList.remove("flex");
+  showDashboard();
+}
+
+function handleLogout() {
+  authToken = null; currentUser = null;
+  document.getElementById("dashboardScreen").classList.add("hidden");
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("loginEmail").value = "";
+  document.getElementById("loginPassword").value = "";
+}
+
+/* ============================================================
+ * DASHBOARD
+ * ============================================================ */
+async function showDashboard() {
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("dashboardScreen").classList.remove("hidden");
+  document.getElementById("userBadge").textContent = currentUser.nama + " · " + currentUser.role;
+
+  const isStaff = currentUser.role === "staff" || currentUser.role === "admin";
+  document.getElementById("statusPanel").classList.toggle("hidden", !isStaff);
+  if (isStaff) await refreshStatusPanel();
+
+  await loadRingkasan();
+}
+
+async function refreshStatusPanel() {
+  const j = await apiPost({ action: "getStatus" });
+  if (!j.ok) return;
+  const btn = document.getElementById("statusToggleBtn");
+  const txt = document.getElementById("statusText");
+  txt.textContent = j.dataSiap
+    ? `Data SUDAH dipublikasikan ke Direksi (oleh ${j.updatedBy || "-"})`
+    : "Data BELUM dipublikasikan ke Direksi";
+  btn.textContent = j.dataSiap ? "Tarik kembali (unpublish)" : "Publikasikan ke Direksi";
+  btn.className = "text-sm font-medium rounded-lg px-4 py-2 transition " +
+    (j.dataSiap ? "bg-slate-100 text-slate-600 hover:bg-slate-200" : "bg-teal-600 text-white hover:bg-teal-700");
+  btn.dataset.next = j.dataSiap ? "false" : "true";
+}
+
+async function handleToggleStatus() {
+  const next = document.getElementById("statusToggleBtn").dataset.next === "true";
+  const j = await apiPost({ action: "setStatus", dataSiap: next, periode: DUMMY_RINGKASAN.periode });
+  if (!j.ok) return alert(j.error || "Gagal mengubah status.");
+  await refreshStatusPanel();
+  await loadRingkasan(); // refresh tampilan Direksi juga (berguna saat demo di 1 browser yg sama)
+}
+
+async function loadRingkasan() {
+  const j = await apiPost({ action: "getRingkasanEksekutif" });
+  document.getElementById("periodeLabel").textContent = j.periode ? "Periode: " + j.periode : "—";
+
+  if (!j.ok) { alert(j.error || "Gagal memuat data."); return; }
+
+  if (!j.dataSiap) {
+    document.getElementById("notReadyPanel").classList.remove("hidden");
+    document.getElementById("dataPanel").classList.add("hidden");
+    return;
+  }
+  document.getElementById("notReadyPanel").classList.add("hidden");
+  document.getElementById("dataPanel").classList.remove("hidden");
+  renderKPI(j);
+  renderTrendChart(j.trendBulanan);
+  renderSegmenChart(j.segmenRevenue);
+  renderAnggaran(j.anggaranVsRealisasi);
+}
+
+function renderKPI(j) {
+  document.getElementById("kpiPendapatan").textContent = fmtRupiah(j.kpi.pendapatan.value);
+  document.getElementById("kpiPendapatanSub").textContent = j.kpi.pendapatan.growthYoY != null
+    ? (j.kpi.pendapatan.growthYoY >= 0 ? "▲ " : "▼ ") + fmtPersen(Math.abs(j.kpi.pendapatan.growthYoY)) + " YoY"
+    : "vs Anggaran " + fmtRupiah(j.kpi.pendapatan.target);
+  document.getElementById("kpiLabaRugi").textContent = fmtRupiah(j.kpi.labaRugi.value);
+  document.getElementById("kpiLabaRugiSub").textContent = j.kpi.labaRugi.growthYoY != null
+    ? (j.kpi.labaRugi.growthYoY >= 0 ? "▲ " : "▼ ") + fmtPersen(Math.abs(j.kpi.labaRugi.growthYoY)) + " YoY"
+    : "";
+  document.getElementById("kpiEbitda").textContent = fmtPersen(j.kpi.ebitdaMargin.value);
+  document.getElementById("kpiKas").textContent = fmtRupiah(j.kpi.kasAkhir.value);
+}
+
+function renderTrendChart(trend) {
+  const ctx = document.getElementById("chartTrend");
+  if (chartTrend) chartTrend.destroy();
+  chartTrend = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: trend.map(t => t.bulan),
+      datasets: [
+        { label: "Pendapatan", data: trend.map(t => t.pendapatan), borderColor: "#0d9488", backgroundColor: "#0d948833", tension: 0.3 },
+        { label: "Laba Rugi", data: trend.map(t => t.labaRugi), borderColor: "#334155", backgroundColor: "#33415533", tension: 0.3 },
+      ],
+    },
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+  });
+}
+
+function renderSegmenChart(segmen) {
+  const ctx = document.getElementById("chartSegmen");
+  if (chartSegmen) chartSegmen.destroy();
+  chartSegmen = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: segmen.map(s => s.segmen),
+      datasets: [{ data: segmen.map(s => s.value), backgroundColor: ["#0d9488", "#14b8a6", "#5eead4", "#134e4a"] }],
+    },
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+  });
+}
+
+function renderAnggaran(a) {
+  const pct = a.capaianPersen != null ? Math.min(100, a.capaianPersen) : 0;
+  document.getElementById("anggaranBar").style.width = pct + "%";
+  document.getElementById("anggaranText").textContent =
+    `Realisasi ${fmtRupiah(a.realisasi)} dari Anggaran ${fmtRupiah(a.anggaran)} (${fmtPersen(a.capaianPersen)})`;
+}
+</script>
+</body>
+</html>
