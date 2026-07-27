@@ -8,18 +8,9 @@
 <!-- Chart.js: utama dari jsdelivr; kalau gagal, coba cdnjs (beberapa jaringan memblokir salah satunya) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
   onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js';document.head.appendChild(s);"></script>
-<!-- Dummy data untuk mode sandbox (MOCK_MODE=true). Hapus/abaikan saat MOCK_MODE=false. -->
-<script src="dummy-data.js"></script>
-<style>
-  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-</style>
+<style> body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; } </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
-
-<!-- ============ BANNER MODE SANDBOX ============ -->
-<div id="sandboxBanner" class="bg-amber-400 text-amber-950 text-center text-sm font-medium py-1 px-2">
-  MODE SANDBOX — data di halaman ini adalah data dummy, tidak terhubung ke Google Sheet asli.
-</div>
 
 <!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="flex items-center justify-center min-h-[90vh] px-4">
@@ -67,7 +58,7 @@
 <div id="dashboardScreen" class="hidden max-w-6xl mx-auto px-4 py-6">
 
   <!-- header -->
-  <div class="flex items-center justify-between mb-6">
+  <div class="flex items-center justify-between mb-5">
     <div class="flex items-center gap-3">
       <img src="logo.png" alt="Logo" class="h-9 object-contain" />
       <div>
@@ -82,7 +73,7 @@
   </div>
 
   <!-- staff-only: toggle data siap -->
-  <div id="statusPanel" class="hidden mb-6 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+  <div id="statusPanel" class="hidden mb-5 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
     <div>
       <p class="text-sm font-medium text-slate-800">Status Data — Direksi</p>
       <p id="statusText" class="text-xs text-slate-500 mt-0.5">Memuat status...</p>
@@ -99,47 +90,61 @@
 
   <!-- isi dashboard -->
   <div id="dataPanel" class="hidden">
+
+    <!-- SLICER PERIODE -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-xs font-medium text-slate-500">Periode:</span>
+        <div id="modeTabs" class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+          <button data-mode="bulan" class="modeBtn px-4 py-1.5">Bulan</button>
+          <button data-mode="quarter" class="modeBtn px-4 py-1.5 border-l border-slate-200">Quarter</button>
+          <button data-mode="year" class="modeBtn px-4 py-1.5 border-l border-slate-200">Year</button>
+        </div>
+        <select id="periodSelect" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white"></select>
+        <span id="compareHint" class="text-xs text-slate-400 italic"></span>
+      </div>
+    </div>
+
     <!-- KPI cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
       <div class="bg-white border border-slate-200 rounded-xl p-4">
-        <p class="text-xs text-slate-500">Pendapatan</p>
-        <p id="kpiPendapatan" class="text-xl font-semibold text-slate-800 mt-1">—</p>
-        <p id="kpiPendapatanSub" class="text-xs text-slate-400 mt-1">—</p>
+        <p class="text-xs text-slate-500">Revenue</p>
+        <p id="kpiRevenue" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="flex gap-1.5 mt-2 flex-wrap" id="revChips"></div>
       </div>
       <div class="bg-white border border-slate-200 rounded-xl p-4">
         <p class="text-xs text-slate-500">Laba Rugi</p>
-        <p id="kpiLabaRugi" class="text-xl font-semibold text-slate-800 mt-1">—</p>
-        <p id="kpiLabaRugiSub" class="text-xs text-slate-400 mt-1">—</p>
+        <p id="kpiLaba" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="flex gap-1.5 mt-2 flex-wrap" id="labaChips"></div>
       </div>
       <div class="bg-white border border-slate-200 rounded-xl p-4">
         <p class="text-xs text-slate-500">EBITDA Margin</p>
         <p id="kpiEbitda" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <p class="text-xs text-slate-400 mt-1">bulan terakhir periode</p>
       </div>
       <div class="bg-white border border-slate-200 rounded-xl p-4">
         <p class="text-xs text-slate-500">Kas Akhir</p>
         <p id="kpiKas" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <p class="text-xs text-slate-400 mt-1">posisi akhir periode</p>
       </div>
+    </div>
+
+    <!-- PANEL PERBANDINGAN -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+      <p class="text-sm font-medium text-slate-700 mb-2">Perbandingan Periode</p>
+      <div id="comparePanel" class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm"></div>
     </div>
 
     <!-- charts -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="md:col-span-2 bg-white border border-slate-200 rounded-xl p-4">
-        <p class="text-sm font-medium text-slate-700 mb-2">Tren Pendapatan & Laba Rugi (juta Rp)</p>
-        <div id="wrapTrend"><canvas id="chartTrend" height="120"></canvas></div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-sm font-medium text-slate-700 mb-2">Tren Revenue vs Opex (juta Rp)</p>
+        <div id="wrapTrend"><canvas id="chartTrend" height="150"></canvas></div>
       </div>
       <div class="bg-white border border-slate-200 rounded-xl p-4">
-        <p class="text-sm font-medium text-slate-700 mb-2">Revenue per Segmen (juta Rp)</p>
-        <div id="wrapSegmen"><canvas id="chartSegmen" height="160"></canvas></div>
+        <p class="text-sm font-medium text-slate-700 mb-2">Tren Revenue per Segmen (juta Rp)</p>
+        <div id="wrapSegmen"><canvas id="chartSegmen" height="150"></canvas></div>
       </div>
-    </div>
-
-    <!-- anggaran vs realisasi -->
-    <div class="bg-white border border-slate-200 rounded-xl p-4">
-      <p class="text-sm font-medium text-slate-700 mb-2">Anggaran vs Realisasi Pendapatan</p>
-      <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-        <div id="anggaranBar" class="bg-teal-600 h-3 rounded-full" style="width:0%"></div>
-      </div>
-      <p id="anggaranText" class="text-xs text-slate-500 mt-2">—</p>
     </div>
   </div>
 </div>
@@ -147,34 +152,21 @@
 <script>
 /* ============================================================
  * KONFIGURASI
- * ============================================================
- * MOCK_MODE = true  -> pakai dummy-data.js, TIDAK memanggil Apps Script.
- * MOCK_MODE = false -> panggil API_URL (Web App Apps Script) yang sesungguhnya.
- * Ubah ke false + isi API_URL saat siap deploy ke data produksi.
- */
-const MOCK_MODE = false;
+ * ============================================================ */
 const API_URL = "https://script.google.com/macros/s/AKfycbz5RspCLhpVa432MoXH_iZ_8gJi7I8pKZvPy5g8InVlu_r_9-xE2Vem3nDAU6UTLrBu/exec";
 
 let authToken = null;
 let currentUser = null;
-let chartTrend = null;
-let chartSegmen = null;
-let lastPeriode = ""; // periode data terakhir yang dimuat (untuk tombol publikasi)
-
-// Sembunyikan penanda sandbox begitu tersambung ke data asli.
-if (!MOCK_MODE) {
-  var _banner = document.getElementById("sandboxBanner");
-  if (_banner) _banner.remove();
-  var _demoHint = document.getElementById("demoHint");
-  if (_demoHint) _demoHint.remove();
-}
+let lastPeriode = "";
+let series = [];      // data bulanan dari backend: [{bulan, revenue, opex, laba, ebitdaMargin, kas, seg:{APD,APL,APP,APS}}]
+let mode = "bulan";   // bulan | quarter | year
+let sel = 0;          // index pilihan pada daftar periode mode aktif
+let chartTrend = null, chartSegmen = null;
 
 /* ============================================================
- * LAPISAN API — sengaja dipisah supaya switch mock <-> real
- * tidak perlu ubah kode UI di bawahnya sama sekali.
+ * LAPISAN API
  * ============================================================ */
 async function _post(payload) {
-  if (MOCK_MODE) return _mockPost(payload);
   const res = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -186,55 +178,24 @@ async function _post(payload) {
 }
 async function apiPost(payload) { payload.token = authToken; return _post(payload); }
 
-/* ---- mock backend: meniru persis kontrak Code.gs asli ---- */
-async function _mockPost(payload) {
-  await _delay(250); // simulasi latency jaringan
-  const action = payload.action;
-
-  if (action === "checkLogin") {
-    const u = DUMMY_USERS.find(x => x.email.toLowerCase() === String(payload.email).toLowerCase()
-      && x.password === payload.password);
-    if (!u) return { ok: false, error: "Email atau password salah" };
-    const token = "mock-" + Math.random().toString(36).slice(2);
-    return { ok: true, token, user: { email: u.email, nama: u.nama, role: u.role, mustChange: u.mustChange } };
-  }
-  if (action === "gantiPassword") {
-    if (payload.passwordBaru.length < 6) return { ok: false, error: "Password baru minimal 6 karakter." };
-    return { ok: true }; // di mock tidak perlu benar2 ubah state DUMMY_USERS
-  }
-  if (action === "getStatus") {
-    return { ok: true, ...DUMMY_STATUS };
-  }
-  if (action === "setStatus") {
-    if (currentUser.role !== "staff" && currentUser.role !== "admin")
-      return { ok: false, error: "Hanya staf Finacc/admin yang boleh mengubah status data siap." };
-    DUMMY_STATUS.dataSiap = !!payload.dataSiap;
-    DUMMY_STATUS.updatedBy = currentUser.email;
-    DUMMY_STATUS.updatedAt = new Date().toISOString();
-    return { ok: true };
-  }
-  if (action === "getRingkasanEksekutif") {
-    if (currentUser.role === "direksi" && !DUMMY_STATUS.dataSiap) {
-      return { ok: true, dataSiap: false, periode: DUMMY_STATUS.periode };
-    }
-    return { ok: true, dataSiap: true, ...DUMMY_RINGKASAN };
-  }
-  return { ok: false, error: "Action mock tidak dikenal: " + action };
-}
-
 /* ============================================================
- * FORMAT HELPER
+ * FORMAT HELPER — konsisten JUTA rupiah
  * ============================================================ */
-// Semua nilai uang ditampilkan konsisten dalam JUTA rupiah ("jt"),
-// selaras dengan angka segmen dan skala laporan bulanan PMU.
-function fmtRupiah(v) {
+function fmtJt(v, d) {
   if (v === null || v === undefined) return "—";
-  return "Rp " + (v / 1e6).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " jt";
+  return "Rp " + v.toLocaleString("id-ID", { maximumFractionDigits: (d === undefined ? 1 : d) }) + " jt";
 }
-function fmtPersen(v) { return (v === null || v === undefined) ? "—" : v.toFixed(1) + "%"; }
+function fmtPct(v) { return v.toLocaleString("id-ID", { maximumFractionDigits: 1 }); }
+function pctDelta(now, prev) { return (prev === null || prev === undefined || prev === 0) ? null : ((now - prev) / Math.abs(prev) * 100); }
+function chip(label, pct) {
+  if (pct === null || pct === undefined)
+    return `<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">${label}: n/a</span>`;
+  const up = pct >= 0;
+  return `<span class="text-[11px] px-2 py-0.5 rounded-full ${up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}">${label}: ${up ? '▲' : '▼'} ${fmtPct(Math.abs(pct))}%</span>`;
+}
 
 /* ============================================================
- * LOGIN / LOGOUT
+ * LOGIN / LOGOUT (pola secure-auth-appsscript)
  * ============================================================ */
 async function handleLogin() {
   const email = document.getElementById("loginEmail").value.trim();
@@ -251,7 +212,7 @@ async function handleLogin() {
   if (currentUser.mustChange) {
     document.getElementById("mustChangeModal").classList.remove("hidden");
     document.getElementById("mustChangeModal").classList.add("flex");
-    return; // dashboard dimuat setelah ganti password
+    return;
   }
   showDashboard();
 }
@@ -311,94 +272,215 @@ async function handleToggleStatus() {
   const j = await apiPost({ action: "setStatus", dataSiap: next, periode: lastPeriode });
   if (!j.ok) return alert(j.error || "Gagal mengubah status.");
   await refreshStatusPanel();
-  await loadRingkasan(); // refresh tampilan Direksi juga (berguna saat demo di 1 browser yg sama)
+  await loadRingkasan();
 }
 
 async function loadRingkasan() {
   const j = await apiPost({ action: "getRingkasanEksekutif" });
-  lastPeriode = j.periode || "";
-  document.getElementById("periodeLabel").textContent = j.periode ? "Periode: " + j.periode : "—";
-
   if (!j.ok) { alert(j.error || "Gagal memuat data."); return; }
 
   if (!j.dataSiap) {
+    document.getElementById("periodeLabel").textContent = j.periode ? "Periode: " + j.periode : "—";
     document.getElementById("notReadyPanel").classList.remove("hidden");
     document.getElementById("dataPanel").classList.add("hidden");
     return;
   }
   document.getElementById("notReadyPanel").classList.add("hidden");
   document.getElementById("dataPanel").classList.remove("hidden");
-  renderKPI(j);
-  renderTrendChart(j.trendBulanan);
-  renderSegmenChart(j.segmenRevenue);
-  renderAnggaran(j.anggaranVsRealisasi);
+
+  series = j.bulanan || [];
+  lastPeriode = series.length ? series[series.length - 1].bulan : (j.periode || "");
+  mode = "bulan";
+  sel = periodList().length - 1;
+  render();
 }
 
-function renderKPI(j) {
-  document.getElementById("kpiPendapatan").textContent = fmtRupiah(j.kpi.pendapatan.value);
-  document.getElementById("kpiPendapatanSub").textContent = j.kpi.pendapatan.growthYoY != null
-    ? (j.kpi.pendapatan.growthYoY >= 0 ? "▲ " : "▼ ") + fmtPersen(Math.abs(j.kpi.pendapatan.growthYoY)) + " YoY"
-    : "vs Anggaran " + fmtRupiah(j.kpi.pendapatan.target);
-  document.getElementById("kpiLabaRugi").textContent = fmtRupiah(j.kpi.labaRugi.value);
-  document.getElementById("kpiLabaRugiSub").textContent = j.kpi.labaRugi.growthYoY != null
-    ? (j.kpi.labaRugi.growthYoY >= 0 ? "▲ " : "▼ ") + fmtPersen(Math.abs(j.kpi.labaRugi.growthYoY)) + " YoY"
-    : "";
-  document.getElementById("kpiEbitda").textContent = fmtPersen(j.kpi.ebitdaMargin.value);
-  document.getElementById("kpiKas").textContent = fmtRupiah(j.kpi.kasAkhir.value);
+/* ============================================================
+ * SLICER: daftar periode & agregasi
+ * Bulan "MMM-yy" -> quarter "Qn-yy" & year "20yy" diturunkan dari data.
+ * ============================================================ */
+const MON_NUM = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
+function monthMeta(lbl) {
+  const [mon, yy] = String(lbl).split("-");
+  const m = MON_NUM[mon] || 0;
+  return { m, yy, q: Math.ceil(m / 3) };
+}
+function periodList() {
+  if (mode === "bulan") return series.map(s => s.bulan);
+  if (mode === "quarter") {
+    const out = [];
+    series.forEach(s => { const x = monthMeta(s.bulan); const q = "Q" + x.q + "-" + x.yy; if (!out.includes(q)) out.push(q); });
+    return out;
+  }
+  const out = [];
+  series.forEach(s => { const y = "20" + monthMeta(s.bulan).yy; if (!out.includes(y)) out.push(y); });
+  return out;
+}
+function idxsOf(periodLabel, m) {
+  const mm = m || mode;
+  return series.map((s, i) => {
+    const x = monthMeta(s.bulan);
+    if (mm === "bulan") return s.bulan === periodLabel ? i : -1;
+    if (mm === "quarter") return ("Q" + x.q + "-" + x.yy) === periodLabel ? i : -1;
+    return ("20" + x.yy) === periodLabel ? i : -1;
+  }).filter(i => i >= 0);
+}
+function prevPeriod(list, i) { return i > 0 ? list[i - 1] : null; }
+function yoyPeriod(label) {
+  if (mode === "bulan") { const [mon, yy] = label.split("-"); return mon + "-" + (String(+yy - 1).padStart(2, "0")); }
+  if (mode === "quarter") { const [q, yy] = label.split("-"); return q + "-" + (String(+yy - 1).padStart(2, "0")); }
+  return String(+label - 1);
+}
+function sum(idxs, key) { return idxs.reduce((a, i) => a + (Number(series[i][key]) || 0), 0); }
+
+function currentSelection() {
+  const list = periodList();
+  const label = list[sel];
+  const idxs = idxsOf(label);
+  const yoyLbl = yoyPeriod(label);
+  const yoyIdxs = idxsOf(yoyLbl);
+  let momLbl = null, momIdxs = null;
+  if (mode !== "year") {
+    momLbl = prevPeriod(list, sel);
+    momIdxs = momLbl ? idxsOf(momLbl) : null;
+  }
+  let dispLabel = label;
+  if (mode === "year") {
+    const lastMon = series[idxs[idxs.length - 1]].bulan;
+    const fullYear = idxs.length >= 12;
+    if (!fullYear) dispLabel = label + " (YTD s.d. " + lastMon + ")";
+  }
+  const hint = mode === "bulan" ? "Pembanding otomatis: MoM (bulan sebelumnya) & YoY (bulan sama tahun lalu)"
+    : mode === "quarter" ? "Pembanding otomatis: QoQ (quarter sebelumnya) & YoY (quarter sama tahun lalu)"
+    : "Tahun berjalan tampil s.d. data terakhir; pembanding = full year tahun lalu (achievement %)";
+  return { label, dispLabel, idxs, momLbl, momIdxs, yoyLbl, yoyIdxs: yoyIdxs.length ? yoyIdxs : null, hint };
 }
 
-function renderTrendChart(trend) {
-  // Fallback: kalau Chart.js gagal dimuat (CDN diblokir jaringan), tampilkan tabel sederhana.
+/* ============================================================
+ * RENDER
+ * ============================================================ */
+function render() {
+  if (!series.length) return;
+  // tabs
+  document.querySelectorAll(".modeBtn").forEach(b => {
+    const active = b.dataset.mode === mode;
+    b.className = "modeBtn px-4 py-1.5 " + (b.dataset.mode !== "bulan" ? "border-l border-slate-200 " : "") +
+      (active ? "bg-teal-600 text-white font-medium" : "bg-white text-slate-600 hover:bg-slate-50");
+  });
+  // dropdown
+  const list = periodList();
+  if (sel >= list.length) sel = list.length - 1;
+  document.getElementById("periodSelect").innerHTML =
+    list.map((o, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${o}</option>`).join("");
+
+  const c = currentSelection();
+  document.getElementById("compareHint").textContent = c.hint;
+  document.getElementById("periodeLabel").textContent = "Periode: " + c.dispLabel;
+
+  const rev = sum(c.idxs, "revenue"), laba = sum(c.idxs, "laba");
+  const revMom = c.momIdxs ? sum(c.momIdxs, "revenue") : null;
+  const revYoy = c.yoyIdxs ? sum(c.yoyIdxs, "revenue") : null;
+  const labaMom = c.momIdxs ? sum(c.momIdxs, "laba") : null;
+  const labaYoy = c.yoyIdxs ? sum(c.yoyIdxs, "laba") : null;
+  const lastIdx = c.idxs[c.idxs.length - 1];
+
+  document.getElementById("kpiRevenue").textContent = fmtJt(rev, 0);
+  document.getElementById("kpiLaba").textContent = fmtJt(laba, 0);
+  document.getElementById("kpiEbitda").textContent = (series[lastIdx].ebitdaMargin === null || series[lastIdx].ebitdaMargin === undefined) ? "—" : fmtPct(series[lastIdx].ebitdaMargin) + "%";
+  document.getElementById("kpiKas").textContent = fmtJt(series[lastIdx].kas, 0);
+
+  const momName = mode === "quarter" ? "QoQ" : "MoM";
+  document.getElementById("revChips").innerHTML =
+    (mode !== "year" ? chip(momName, pctDelta(rev, revMom)) : "") + chip("YoY", pctDelta(rev, revYoy)) +
+    (mode === "year" && revYoy ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">Achievement vs ${c.yoyLbl}: ${fmtPct(rev / revYoy * 100)}%</span>` : "");
+  document.getElementById("labaChips").innerHTML =
+    (mode !== "year" ? chip(momName, pctDelta(laba, labaMom)) : "") + chip("YoY", pctDelta(laba, labaYoy));
+
+  // panel perbandingan
+  const box = (title, val, sub) => `<div class="border border-slate-100 rounded-lg p-3 bg-slate-50/50"><p class="text-xs text-slate-400">${title}</p><p class="font-semibold text-slate-800 mt-0.5">${val}</p><p class="text-xs text-slate-500 mt-0.5">${sub || ""}</p></div>`;
+  let html = box("Periode terpilih — " + c.dispLabel, fmtJt(rev, 0), "Laba Rugi " + fmtJt(laba, 0));
+  if (mode !== "year") {
+    const d = pctDelta(rev, revMom);
+    html += box((mode === "quarter" ? "QoQ — " : "MoM — ") + (c.momLbl || "-"),
+      revMom !== null ? fmtJt(revMom, 0) : "—",
+      d !== null ? ("Δ Revenue " + (d >= 0 ? "+" : "") + fmtPct(d) + "%") : "data belum tersedia");
+  }
+  const dy = pctDelta(rev, revYoy);
+  html += box("YoY — " + c.yoyLbl, revYoy !== null ? fmtJt(revYoy, 0) : "—",
+    revYoy !== null
+      ? (mode === "year" ? "Achievement " + fmtPct(rev / revYoy * 100) + "%" : "Δ Revenue " + (dy >= 0 ? "+" : "") + fmtPct(dy) + "%")
+      : "data belum tersedia");
+  document.getElementById("comparePanel").innerHTML = html;
+
+  renderCharts(lastIdx);
+}
+
+/* ============================================================
+ * CHARTS (dengan fallback tanpa Chart.js)
+ * ============================================================ */
+function renderCharts(endIdx) {
+  const s = Math.max(0, endIdx - 11), e = endIdx + 1;
+  const win = series.slice(s, e);
+  const lbl = win.map(x => x.bulan);
+
   if (typeof Chart === "undefined") {
     document.getElementById("wrapTrend").innerHTML =
-      '<table class="w-full text-xs text-slate-600"><tr class="text-left text-slate-400"><th class="py-1">Bulan</th><th class="text-right">Pendapatan (jt)</th><th class="text-right">Laba Rugi (jt)</th></tr>' +
-      trend.map(t => `<tr class="border-t border-slate-100"><td class="py-1">${t.bulan}</td><td class="text-right">${t.pendapatan.toLocaleString("id-ID",{maximumFractionDigits:2})}</td><td class="text-right">${t.labaRugi.toLocaleString("id-ID",{maximumFractionDigits:2})}</td></tr>`).join("") +
+      '<table class="w-full text-xs text-slate-600"><tr class="text-left text-slate-400"><th class="py-1">Bulan</th><th class="text-right">Revenue (jt)</th><th class="text-right">Opex (jt)</th></tr>' +
+      win.map(t => `<tr class="border-t border-slate-100"><td class="py-1">${t.bulan}</td><td class="text-right">${t.revenue.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</td><td class="text-right">${t.opex.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</td></tr>`).join("") +
       "</table>";
+    const last = win[win.length - 1];
+    const total = (last.seg.APD + last.seg.APL + last.seg.APP + last.seg.APS) || 1;
+    document.getElementById("wrapSegmen").innerHTML =
+      `<p class="text-xs text-slate-400 mb-2">(grafik tidak tersedia — menampilkan komposisi ${last.bulan})</p>` +
+      ["APD", "APL", "APP", "APS"].map(k => {
+        const v = last.seg[k]; const pct = Math.round(v / total * 100);
+        return `<div class="mb-2"><div class="flex justify-between text-xs text-slate-600 mb-0.5"><span>${k}</span><span>${v.toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt (${pct}%)</span></div><div class="w-full bg-slate-100 rounded-full h-2"><div class="bg-teal-600 h-2 rounded-full" style="width:${pct}%"></div></div></div>`;
+      }).join("");
     return;
   }
-  const ctx = document.getElementById("chartTrend");
+
   if (chartTrend) chartTrend.destroy();
-  chartTrend = new Chart(ctx, {
+  chartTrend = new Chart(document.getElementById("chartTrend"), {
     type: "line",
     data: {
-      labels: trend.map(t => t.bulan),
+      labels: lbl,
       datasets: [
-        { label: "Pendapatan", data: trend.map(t => t.pendapatan), borderColor: "#0d9488", backgroundColor: "#0d948833", tension: 0.3 },
-        { label: "Laba Rugi", data: trend.map(t => t.labaRugi), borderColor: "#334155", backgroundColor: "#33415533", tension: 0.3 },
+        { label: "Revenue", data: win.map(x => x.revenue), borderColor: "#0d9488", backgroundColor: "#0d948833", tension: 0.3 },
+        { label: "Opex", data: win.map(x => x.opex), borderColor: "#dc2626", backgroundColor: "#dc262633", tension: 0.3 },
       ],
     },
     options: { responsive: true, plugins: { legend: { position: "bottom" } } },
   });
-}
 
-function renderSegmenChart(segmen) {
-  // Fallback: bar horizontal sederhana tanpa Chart.js.
-  if (typeof Chart === "undefined") {
-    const total = segmen.reduce((a, s) => a + s.value, 0) || 1;
-    document.getElementById("wrapSegmen").innerHTML = segmen.map(s => {
-      const pct = Math.round((s.value / total) * 100);
-      return `<div class="mb-2"><div class="flex justify-between text-xs text-slate-600 mb-0.5"><span>${s.segmen}</span><span>${s.value.toLocaleString("id-ID",{maximumFractionDigits:1})} jt (${pct}%)</span></div><div class="w-full bg-slate-100 rounded-full h-2"><div class="bg-teal-600 h-2 rounded-full" style="width:${pct}%"></div></div></div>`;
-    }).join("");
-    return;
-  }
-  const ctx = document.getElementById("chartSegmen");
   if (chartSegmen) chartSegmen.destroy();
-  chartSegmen = new Chart(ctx, {
-    type: "doughnut",
+  chartSegmen = new Chart(document.getElementById("chartSegmen"), {
+    type: "bar",
     data: {
-      labels: segmen.map(s => s.segmen),
-      datasets: [{ data: segmen.map(s => s.value), backgroundColor: ["#0d9488", "#14b8a6", "#5eead4", "#134e4a"] }],
+      labels: lbl,
+      datasets: [
+        { label: "APD", data: win.map(x => x.seg.APD), backgroundColor: "#134e4a" },
+        { label: "APL", data: win.map(x => x.seg.APL), backgroundColor: "#0d9488" },
+        { label: "APP", data: win.map(x => x.seg.APP), backgroundColor: "#14b8a6" },
+        { label: "APS", data: win.map(x => x.seg.APS), backgroundColor: "#99f6e4" },
+      ],
     },
-    options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+    options: {
+      responsive: true, plugins: { legend: { position: "bottom" } },
+      scales: { x: { stacked: true }, y: { stacked: true } },
+    },
   });
 }
 
-function renderAnggaran(a) {
-  const pct = a.capaianPersen != null ? Math.min(100, a.capaianPersen) : 0;
-  document.getElementById("anggaranBar").style.width = pct + "%";
-  document.getElementById("anggaranText").textContent =
-    `Realisasi ${fmtRupiah(a.realisasi)} dari Anggaran ${fmtRupiah(a.anggaran)} (${fmtPersen(a.capaianPersen)})`;
-}
+/* ============================================================
+ * EVENTS SLICER
+ * ============================================================ */
+document.getElementById("modeTabs").addEventListener("click", e => {
+  const b = e.target.closest(".modeBtn"); if (!b) return;
+  mode = b.dataset.mode;
+  sel = periodList().length - 1;
+  render();
+});
+document.getElementById("periodSelect").addEventListener("change", e => { sel = +e.target.value; render(); });
 </script>
 </body>
 </html>
