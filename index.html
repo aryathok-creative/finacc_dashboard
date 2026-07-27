@@ -154,6 +154,28 @@
         <div id="wrapSegmen"><canvas id="chartSegmen" height="150"></canvas></div>
       </div>
     </div>
+
+    <!-- SEKSI: VOLUME vs REVENUE PER SEGMEN (data 2026 saja) -->
+    <div id="volSection" class="hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p id="shareTitle" class="text-sm font-medium text-slate-700 mb-1">Porsi Volume vs Porsi Revenue</p>
+          <p class="text-xs text-slate-400 mb-3">Bar abu = % dari total transaksi · Bar teal = % dari total revenue</p>
+          <div id="shareBars"></div>
+          <p id="shareInsight" class="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3 hidden"></p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p id="yieldTitle" class="text-sm font-medium text-slate-700 mb-1">Rata-rata Revenue per Transaksi (yield)</p>
+          <p class="text-xs text-slate-400 mb-3">Net revenue ÷ jumlah transaksi, per segmen</p>
+          <table class="w-full text-xs text-slate-600" id="yieldTable"></table>
+        </div>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-1">Tren Yield per Segmen 2026 (ribu Rp / transaksi)</p>
+        <p class="text-xs text-slate-400 mb-2">Menunjukkan pergeseran mix tarif antar segmen dari bulan ke bulan</p>
+        <div id="wrapYield"><canvas id="chartYield" height="90"></canvas></div>
+      </div>
+    </div>
   </div>
 
   <!-- ============ HALAMAN 2: PIUTANG & HUTANG ============ -->
@@ -224,9 +246,10 @@ let lastPeriode = "";
 let series = [];      // data bulanan dari backend: [{bulan, revenue, opex, laba, ebitdaMargin, kas, seg:{APD,APL,APP,APS}}]
 let mode = "bulan";   // bulan | quarter | year
 let sel = 0;          // index pilihan pada daftar periode mode aktif
-let chartTrend = null, chartSegmen = null, chartDso = null;
+let chartTrend = null, chartSegmen = null, chartDso = null, chartYield = null;
 let page = "p1";      // p1 = Ringkasan Eksekutif | p2 = Piutang & Hutang
 let arapCache = null; // cache data halaman 2 (di-fetch saat pertama dibuka)
+let volSeries = null; // data volume per segmen (bulanan, hanya 2026); null = belum di-fetch
 
 /* ============================================================
  * LAPISAN API
@@ -359,8 +382,17 @@ async function loadRingkasan() {
   lastPeriode = series.length ? series[series.length - 1].bulan : (j.periode || "");
   mode = "bulan";
   sel = periodList().length - 1;
+  await loadVolume(); // data volume segmen (sekali, lalu cache)
   switchPage(page); // pertahankan halaman aktif (default p1)
   if (page === "p1") render();
+}
+
+async function loadVolume() {
+  if (volSeries !== null) return;
+  try {
+    const j = await apiPost({ action: "getVolumeSegmen" });
+    volSeries = (j.ok && j.dataSiap && j.bulanan) ? j.bulanan : [];
+  } catch (e) { volSeries = []; }
 }
 
 /* ============================================================
@@ -570,6 +602,99 @@ function render() {
   document.getElementById("comparePanel").innerHTML = html;
 
   renderCharts(lastIdx);
+  renderVolume(c);
+}
+
+/* ============================================================
+ * SEKSI VOLUME vs REVENUE PER SEGMEN
+ * ============================================================ */
+const SEGS = ["APD", "APL", "APS", "APP"];
+const SEG_COLORS = { APD: "#134e4a", APL: "#0d9488", APS: "#f59e0b", APP: "#dc2626" };
+
+function renderVolume(c) {
+  const sect = document.getElementById("volSection");
+  if (!volSeries || !volSeries.length) { sect.classList.add("hidden"); return; }
+
+  // bulan-bulan terpilih yang punya data volume (hanya 2026)
+  const selMonths = c.idxs.map(i => series[i].bulan);
+  const rows = volSeries.filter(v => selMonths.includes(v.bulan));
+  if (!rows.length) { sect.classList.add("hidden"); return; }
+  sect.classList.remove("hidden");
+
+  // agregasi periode terpilih
+  const agg = {};
+  SEGS.forEach(s => agg[s] = { net: 0, trx: 0 });
+  rows.forEach(r => SEGS.forEach(s => { agg[s].net += (r[s] ? r[s].net : 0); agg[s].trx += (r[s] ? r[s].trx : 0); }));
+  const totNet = SEGS.reduce((a, s) => a + agg[s].net, 0) || 1;
+  const totTrx = SEGS.reduce((a, s) => a + agg[s].trx, 0) || 1;
+
+  document.getElementById("shareTitle").textContent = "Porsi Volume vs Porsi Revenue — " + c.dispLabel;
+  document.getElementById("yieldTitle").textContent = "Rata-rata Revenue per Transaksi (yield) — " + c.dispLabel;
+
+  // bar ganda porsi
+  document.getElementById("shareBars").innerHTML = SEGS.map(s => {
+    const vol = agg[s].trx / totTrx * 100, rev = agg[s].net / totNet * 100;
+    return `<div class="mb-3">
+      <div class="flex justify-between text-xs text-slate-600 mb-1"><span class="font-medium">${s}</span><span>vol ${fmtPct(vol)}% · rev ${fmtPct(rev)}%</span></div>
+      <div class="w-full bg-slate-100 rounded-full h-2 mb-1"><div class="bg-slate-400 h-2 rounded-full" style="width:${Math.max(vol, 1)}%"></div></div>
+      <div class="w-full bg-slate-100 rounded-full h-2"><div class="bg-teal-600 h-2 rounded-full" style="width:${Math.max(rev, 1)}%"></div></div>
+    </div>`;
+  }).join("");
+
+  // insight otomatis: segmen dgn volume terbesar yang porsi revenuenya jauh lebih kecil
+  const ins = document.getElementById("shareInsight");
+  const maxVol = SEGS.reduce((a, s) => agg[s].trx > agg[a].trx ? s : a, SEGS[0]);
+  const gapVol = agg[maxVol].trx / totTrx * 100, gapRev = agg[maxVol].net / totNet * 100;
+  if (gapVol - gapRev > 10) {
+    ins.innerHTML = `${maxVol} menyumbang <b>${fmtPct(gapVol)}%</b> volume namun hanya <b>${fmtPct(gapRev)}%</b> revenue — volume besar tidak diikuti revenue secara proporsional.`;
+    ins.classList.remove("hidden");
+  } else ins.classList.add("hidden");
+
+  // tabel yield
+  const yr = SEGS.map(s => ({ s, trx: agg[s].trx, net: agg[s].net, yield: agg[s].trx ? agg[s].net * 1000 / agg[s].trx : null }));
+  const minYield = Math.min.apply(null, yr.filter(x => x.yield !== null).map(x => x.yield));
+  document.getElementById("yieldTable").innerHTML =
+    '<tr class="text-left text-slate-400"><th class="py-1">Segmen</th><th class="text-right">Transaksi</th><th class="text-right">Revenue</th><th class="text-right">Yield / trx</th></tr>' +
+    yr.map(x => {
+      const low = x.yield !== null && x.yield === minYield;
+      return `<tr class="border-t border-slate-100 ${low ? 'bg-red-50/50' : ''}">
+        <td class="py-1.5 ${low ? 'font-medium text-red-700' : ''}">${x.s}</td>
+        <td class="text-right">${x.trx.toLocaleString("id-ID")}</td>
+        <td class="text-right">${fmtJt(x.net, 1)}</td>
+        <td class="text-right ${low ? 'font-semibold text-red-700' : 'font-medium'}">${x.yield === null ? "—" : "Rp " + Math.round(x.yield).toLocaleString("id-ID") + " rb"}</td>
+      </tr>`;
+    }).join("");
+
+  renderYieldChart();
+}
+
+function renderYieldChart() {
+  const data = volSeries.map(r => {
+    const o = { bulan: r.bulan };
+    SEGS.forEach(s => o[s] = (r[s] && r[s].trx) ? Math.round(r[s].net * 1000 / r[s].trx) : null);
+    return o;
+  });
+  if (typeof Chart === "undefined") {
+    document.getElementById("wrapYield").innerHTML =
+      '<table class="w-full text-xs text-slate-600"><tr class="text-left text-slate-400"><th class="py-1">Bulan</th>' +
+      SEGS.map(s => `<th class="text-right">${s}</th>`).join("") + "</tr>" +
+      data.map(d => `<tr class="border-t border-slate-100"><td class="py-1">${d.bulan}</td>` +
+        SEGS.map(s => `<td class="text-right">${d[s] === null ? "—" : d[s].toLocaleString("id-ID")}</td>`).join("") + "</tr>").join("") +
+      "</table>";
+    return;
+  }
+  if (chartYield) chartYield.destroy();
+  chartYield = new Chart(document.getElementById("chartYield"), {
+    type: "line",
+    data: {
+      labels: data.map(d => d.bulan),
+      datasets: SEGS.map(s => ({
+        label: s, data: data.map(d => d[s]),
+        borderColor: SEG_COLORS[s], backgroundColor: SEG_COLORS[s] + "33", tension: 0.3, spanGaps: true,
+      })),
+    },
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+  });
 }
 
 /* ============================================================
