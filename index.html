@@ -74,10 +74,7 @@
 
   <!-- NAVIGASI HALAMAN -->
   <div id="pageNav" class="hidden mb-5">
-    <div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm bg-white">
-      <button id="navP1" onclick="switchPage('p1')" class="px-4 py-2">Ringkasan Eksekutif</button>
-      <button id="navP2" onclick="switchPage('p2')" class="px-4 py-2 border-l border-slate-200">Piutang &amp; Hutang</button>
-    </div>
+    <div id="pageNavBtns" class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm bg-white"></div>
   </div>
 
   <!-- staff-only: toggle data siap -->
@@ -232,6 +229,55 @@
       <p class="text-xs text-slate-400 mt-2">DSO = rata-rata umur piutang. Makin rendah makin cepat piutang tertagih.</p>
     </div>
   </div>
+
+  <!-- ============ HALAMAN 3: SASARAN MUTU ============ -->
+  <div id="page3Panel" class="hidden">
+
+    <div id="sarmutLoading" class="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500">
+      Memuat data sasaran mutu…
+    </div>
+
+    <div id="sarmutIsi" class="hidden">
+      <!-- kartu 4 perspektif BSC -->
+      <div id="sarmutKartu" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5"></div>
+
+      <!-- ringkasan sekilas -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p id="sarmutRingkas" class="text-sm text-slate-700"></p>
+        <p class="text-xs text-slate-400 mt-2">
+          Skor dihitung dari indikator yang sudah punya angka. Indikator bertanda
+          <span class="inline-block w-2 h-2 rounded-full bg-slate-300 align-middle"></span>
+          abu-abu belum diukur dan tidak dihitung sebagai gagal.
+        </p>
+      </div>
+
+      <!-- penyaring -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-xs text-slate-500 mr-1">Tampilkan:</span>
+        <button onclick="sarmutFilter('semua')"  id="sfSemua"  class="text-xs px-3 py-1.5 rounded-full border">Semua</button>
+        <button onclick="sarmutFilter('merah')"  id="sfMerah"  class="text-xs px-3 py-1.5 rounded-full border">Belum tercapai</button>
+        <button onclick="sarmutFilter('hijau')"  id="sfHijau"  class="text-xs px-3 py-1.5 rounded-full border">Tercapai</button>
+        <button onclick="sarmutFilter('abu')"    id="sfAbu"    class="text-xs px-3 py-1.5 rounded-full border">Belum diukur</button>
+      </div>
+
+      <!-- tabel indikator per perspektif -->
+      <div id="sarmutTabel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PANEL GESER: DETAIL INDIKATOR ============ -->
+<div id="sarmutDrawerBg" class="hidden fixed inset-0 bg-slate-900/40 z-40" onclick="tutupDetail()"></div>
+<div id="sarmutDrawer"
+     class="hidden fixed top-0 right-0 h-full w-full max-w-xl bg-white z-50 shadow-2xl overflow-y-auto">
+  <div class="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between">
+    <div class="pr-4">
+      <p id="drawerPersp" class="text-xs font-medium text-teal-700"></p>
+      <h3 id="drawerNama" class="text-sm font-semibold text-slate-800 mt-0.5 leading-snug"></h3>
+    </div>
+    <button onclick="tutupDetail()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+  </div>
+  <div id="drawerIsi" class="px-5 py-4"></div>
 </div>
 
 <script>
@@ -250,6 +296,9 @@ let chartTrend = null, chartSegmen = null, chartDso = null, chartYield = null;
 let page = "p1";      // p1 = Ringkasan Eksekutif | p2 = Piutang & Hutang
 let arapCache = null; // cache data halaman 2 (di-fetch saat pertama dibuka)
 let volSeries = null; // data volume per segmen (bulanan, hanya 2026); null = belum di-fetch
+let sarmutCache = null;      // data halaman 3 (di-fetch saat pertama dibuka)
+let sarmutTapis = "semua";   // semua | merah | hijau | abu
+let chartSarmut = null;      // grafik tren di panel detail
 
 /* ============================================================
  * LAPISAN API
@@ -370,13 +419,13 @@ async function loadRingkasan() {
   if (!j.dataSiap) {
     document.getElementById("periodeLabel").textContent = j.periode ? "Periode: " + j.periode : "—";
     document.getElementById("notReadyPanel").classList.remove("hidden");
-    document.getElementById("dataPanel").classList.add("hidden");
-    document.getElementById("page2Panel").classList.add("hidden");
+    PAGES.forEach(p => { const el = document.getElementById(p.panel); if (el) el.classList.add("hidden"); });
     document.getElementById("pageNav").classList.add("hidden");
     return;
   }
   document.getElementById("notReadyPanel").classList.add("hidden");
   document.getElementById("pageNav").classList.remove("hidden");
+  buildPageNav();
 
   series = j.bulanan || [];
   lastPeriode = series.length ? series[series.length - 1].bulan : (j.periode || "");
@@ -398,19 +447,50 @@ async function loadVolume() {
 /* ============================================================
  * NAVIGASI HALAMAN
  * ============================================================ */
+/* ------------------------------------------------------------
+ * PETA HALAMAN
+ * Dulu switchPage ditulis untuk dua halaman saja (logika ya/tidak).
+ * Sekarang jadi daftar, supaya menambah halaman berikutnya tidak
+ * perlu membongkar navigasi lagi.
+ * ---------------------------------------------------------- */
+const PAGES = [
+  { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); } },
+  { id: "p2", label: "Piutang & Hutang",    panel: "page2Panel",  periode: "Posisi per tanggal berjalan (snapshot)", onOpen: loadArap },
+  { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
+];
+
+function buildPageNav() {
+  const wrap = document.getElementById("pageNavBtns");
+  wrap.innerHTML = "";
+  PAGES.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.id = "nav-" + p.id;
+    b.textContent = p.label;
+    b.onclick = () => switchPage(p.id);
+    if (i > 0) b.dataset.border = "1";
+    wrap.appendChild(b);
+  });
+}
+
 function switchPage(p) {
   page = p;
-  const p1 = p === "p1";
-  document.getElementById("dataPanel").classList.toggle("hidden", !p1);
-  document.getElementById("page2Panel").classList.toggle("hidden", p1);
-  document.getElementById("pageTitle").textContent = p1 ? "Ringkasan Eksekutif" : "Piutang & Hutang";
-  if (!p1) document.getElementById("periodeLabel").textContent = "Posisi per tanggal berjalan (snapshot)";
-  else if (series.length) render();
-  const on = "px-4 py-2 bg-teal-600 text-white font-medium";
-  const off = "px-4 py-2 text-slate-600 hover:bg-slate-50 bg-white";
-  document.getElementById("navP1").className = p1 ? on : off;
-  document.getElementById("navP2").className = (p1 ? off : on) + " border-l border-slate-200";
-  if (!p1) loadArap();
+  const aktif = PAGES.find(x => x.id === p) || PAGES[0];
+
+  PAGES.forEach(x => {
+    const el = document.getElementById(x.panel);
+    if (el) el.classList.toggle("hidden", x.id !== p);
+    const btn = document.getElementById("nav-" + x.id);
+    if (btn) {
+      btn.className = (x.id === p
+        ? "px-4 py-2 bg-teal-600 text-white font-medium"
+        : "px-4 py-2 text-slate-600 hover:bg-slate-50 bg-white")
+        + (btn.dataset.border ? " border-l border-slate-200" : "");
+    }
+  });
+
+  document.getElementById("pageTitle").textContent = aktif.label;
+  if (aktif.periode) document.getElementById("periodeLabel").textContent = aktif.periode;
+  if (aktif.onOpen) aktif.onOpen();
 }
 
 /* ============================================================
@@ -694,6 +774,312 @@ function renderYieldChart() {
       })),
     },
     options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+  });
+}
+
+/* ============================================================
+ * HALAMAN 3: SASARAN MUTU
+ * ============================================================ */
+const S_WARNA = {
+  tercapai:       { titik: "bg-teal-500",   teks: "text-teal-700",   label: "Tercapai" },
+  tidak_tercapai: { titik: "bg-red-500",    teks: "text-red-700",    label: "Belum tercapai" },
+  belum_diukur:   { titik: "bg-slate-300",  teks: "text-slate-500",  label: "Belum diukur" },
+  kosong:         { titik: "bg-slate-200",  teks: "text-slate-400",  label: "Belum diisi" },
+  rusak:          { titik: "bg-amber-500",  teks: "text-amber-700",  label: "Data perlu diperbaiki" },
+  tanpa_target:   { titik: "bg-slate-300",  teks: "text-slate-500",  label: "Tanpa target" },
+};
+
+async function loadSarmut() {
+  if (sarmutCache) { renderSarmut(sarmutCache); return; }
+  document.getElementById("sarmutLoading").classList.remove("hidden");
+  document.getElementById("sarmutIsi").classList.add("hidden");
+
+  const j = await apiPost({ action: "getSarmut" });
+  if (!j.ok) {
+    document.getElementById("sarmutLoading").innerHTML =
+      '<p class="text-sm text-red-600">' + (j.error || "Gagal memuat data sasaran mutu.") + "</p>";
+    return;
+  }
+  if (!j.dataSiap) return;
+  sarmutCache = j;
+  renderSarmut(j);
+}
+
+/** Menampilkan nilai sesuai satuannya, bukan angka mentah. */
+function sFmt(nilai, satuan) {
+  if (nilai === null || nilai === undefined) return "—";
+  if (satuan === "persen") return fmtPct(nilai * 100) + "%";
+  if (satuan === "hari")   return Math.round(nilai * 10) / 10 + " hari";
+  if (satuan === "jam")    return Math.round(nilai * 10) / 10 + " jam";
+  if (satuan === "menit")  return Math.round(nilai * 10) / 10 + " menit";
+  return Math.round(nilai * 100) / 100;
+}
+
+function renderSarmut(j) {
+  document.getElementById("sarmutLoading").classList.add("hidden");
+  document.getElementById("sarmutIsi").classList.remove("hidden");
+  document.getElementById("periodeLabel").textContent =
+    "Monitoring sasaran mutu 2026 — data terakhir " + (j.bulanTerakhir || "—");
+
+  // --- kartu perspektif ---
+  const kartu = document.getElementById("sarmutKartu");
+  kartu.innerHTML = "";
+  j.perspektif.forEach(p => {
+    const skor = p.skor === null ? "—" : fmtPct(p.skor) + "%";
+    const warna = p.skor === null ? "text-slate-400"
+      : p.skor >= 80 ? "text-teal-600"
+      : p.skor >= 50 ? "text-amber-600" : "text-red-600";
+    kartu.insertAdjacentHTML("beforeend", `
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs text-slate-500 leading-tight">${p.nama}</p>
+        <p class="text-2xl font-semibold mt-1 ${warna}">${skor}</p>
+        <p class="text-xs text-slate-400 mt-1">
+          ${p.tercapai} dari ${p.dinilai} indikator tercapai${p.belumDiukur ? ` · ${p.belumDiukur} belum diukur` : ""}
+        </p>
+      </div>`);
+  });
+
+  // --- kalimat ringkas ---
+  const semua = j.indikator;
+  const merah = semua.filter(x => x.statusTerakhir === "tidak_tercapai");
+  const abu   = semua.filter(x => x.statusTerakhir === "belum_diukur" || x.statusTerakhir === "kosong");
+  const rusak = semua.filter(x => x.statusTerakhir === "rusak");
+  let ringkas = `Dari <b>${semua.length}</b> indikator mutu, <b>${semua.length - merah.length - abu.length - rusak.length}</b> tercapai dan <b>${merah.length}</b> belum tercapai.`;
+  if (abu.length)   ringkas += ` <b>${abu.length}</b> belum diukur.`;
+  if (rusak.length) ringkas += ` <span class="text-amber-700"><b>${rusak.length}</b> indikator datanya perlu diperbaiki di sumber.</span>`;
+  const terlemah = j.perspektif.filter(p => p.skor !== null).sort((a, b) => a.skor - b.skor)[0];
+  if (terlemah && terlemah.skor < 50) ringkas += ` Perspektif <b>${terlemah.nama}</b> paling tertinggal (${fmtPct(terlemah.skor)}%).`;
+  document.getElementById("sarmutRingkas").innerHTML = ringkas;
+
+  sarmutFilter(sarmutTapis);
+}
+
+function sarmutFilter(t) {
+  sarmutTapis = t;
+  const on  = "text-xs px-3 py-1.5 rounded-full border bg-teal-600 text-white border-teal-600 font-medium";
+  const off = "text-xs px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50";
+  ({ semua: "sfSemua", merah: "sfMerah", hijau: "sfHijau", abu: "sfAbu" });
+  [["semua", "sfSemua"], ["merah", "sfMerah"], ["hijau", "sfHijau"], ["abu", "sfAbu"]].forEach(([k, id]) => {
+    document.getElementById(id).className = (k === t) ? on : off;
+  });
+  renderSarmutTabel();
+}
+
+function lolosTapis(x) {
+  if (sarmutTapis === "semua") return true;
+  if (sarmutTapis === "merah") return x.statusTerakhir === "tidak_tercapai" || x.statusTerakhir === "rusak";
+  if (sarmutTapis === "hijau") return x.statusTerakhir === "tercapai";
+  return x.statusTerakhir === "belum_diukur" || x.statusTerakhir === "kosong";
+}
+
+function renderSarmutTabel() {
+  const j = sarmutCache;
+  const wrap = document.getElementById("sarmutTabel");
+  wrap.innerHTML = "";
+
+  j.perspektif.forEach(p => {
+    const baris = j.indikator.filter(x => x.perspektif === p.nama && lolosTapis(x));
+    if (!baris.length) return;
+
+    let html = `
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+        <p class="text-sm font-medium text-slate-700 mb-3">${p.nama}</p>
+        <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-100">
+              <th class="text-left font-normal pb-2 pr-2">Indikator</th>
+              <th class="text-left font-normal pb-2 px-2 whitespace-nowrap">Target</th>
+              <th class="text-right font-normal pb-2 px-2 whitespace-nowrap">Capaian</th>
+              <th class="text-left font-normal pb-2 px-2 whitespace-nowrap">Status</th>
+              <th class="text-left font-normal pb-2 pl-2 whitespace-nowrap">PIC</th>
+              <th class="pb-2"></th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    baris.forEach(x => {
+      const w = S_WARNA[x.statusTerakhir] || S_WARNA.kosong;
+      const capaian = sFmt(x.nilaiTerakhir, x.satuan);
+      const catatanAkumulasi = x.caraHitung === "akumulasi_ytd"
+        ? `<span class="text-slate-400" title="Dihitung menumpuk sejak Januari">(akumulasi)</span>` : "";
+      html += `
+        <tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onclick="bukaDetail('${x.kunci}')">
+          <td class="py-2 pr-2 text-slate-700 leading-snug">${x.nama}</td>
+          <td class="py-2 px-2 text-slate-500 whitespace-nowrap">${x.targetTeks}</td>
+          <td class="py-2 px-2 text-right font-medium ${w.teks} whitespace-nowrap">${capaian} ${catatanAkumulasi}</td>
+          <td class="py-2 px-2 whitespace-nowrap">
+            <span class="inline-flex items-center gap-1.5 ${w.teks}">
+              <span class="w-2 h-2 rounded-full ${w.titik}"></span>${w.label}
+            </span>
+          </td>
+          <td class="py-2 pl-2 text-slate-500 whitespace-nowrap">${x.pic || "—"}</td>
+          <td class="py-2 text-right text-slate-300">›</td>
+        </tr>`;
+    });
+
+    html += `</tbody></table></div></div>`;
+    wrap.insertAdjacentHTML("beforeend", html);
+  });
+
+  if (!wrap.innerHTML) {
+    wrap.innerHTML = `<div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500">
+      Tidak ada indikator pada penyaring ini.</div>`;
+  }
+}
+
+/* ---------------- panel detail per indikator ---------------- */
+function bukaDetail(kunci) {
+  const j = sarmutCache;
+  const x = j.indikator.find(i => i.kunci === kunci);
+  if (!x) return;
+
+  document.getElementById("drawerPersp").textContent = x.perspektif + (x.program ? " · " + x.program : "");
+  document.getElementById("drawerNama").textContent = x.nama;
+
+  const w = S_WARNA[x.statusTerakhir] || S_WARNA.kosong;
+  let html = `
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="bg-slate-50 rounded-lg p-3">
+        <p class="text-xs text-slate-500">Target</p>
+        <p class="text-sm font-medium text-slate-800 mt-0.5">${x.targetTeks}</p>
+      </div>
+      <div class="bg-slate-50 rounded-lg p-3">
+        <p class="text-xs text-slate-500">Capaian ${x.bulanTerakhir || ""}</p>
+        <p class="text-sm font-medium mt-0.5 ${w.teks}">${sFmt(x.nilaiTerakhir, x.satuan)}</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 mb-5">
+      <span>PIC: <b class="text-slate-700">${x.pic || "—"}</b></span>
+      <span>Frekuensi: <b class="text-slate-700">${x.frekuensi || "—"}</b></span>
+      <span>Cara hitung: <b class="text-slate-700">${x.caraHitung === "akumulasi_ytd" ? "akumulasi sejak Januari" : "nilai per bulan"}</b></span>
+    </div>
+
+    <p class="text-sm font-medium text-slate-700 mb-2">Tren 2026</p>
+    <div class="mb-2"><canvas id="chartSarmutDetail" height="120"></canvas></div>
+    <div id="sarmutTabelBulan" class="mb-5"></div>`;
+
+  // --- ERTL: hanya dikirim server ke direksi & admin ---
+  if (j.bolehLihatErtl) {
+    const ertl = (j.ertl && j.ertl[x.kunci]) || [];
+    html += `<p class="text-sm font-medium text-slate-700 mb-2 pt-2 border-t border-slate-100">Evaluasi & Tindak Lanjut</p>`;
+    if (!ertl.length) {
+      html += `<p class="text-xs text-slate-400 mb-4">Belum ada catatan evaluasi untuk indikator ini.</p>`;
+    } else {
+      ertl.slice().reverse().forEach(e => {
+        html += `
+          <div class="border border-slate-200 rounded-lg p-3 mb-2">
+            <p class="text-xs font-medium text-slate-700 mb-1.5">${e.bulan}</p>
+            ${e.kendala   ? `<p class="text-xs text-slate-600 mb-1"><span class="text-slate-400">Kendala:</span> ${e.kendala}</p>` : ""}
+            ${e.penyebab  ? `<p class="text-xs text-slate-600 mb-1"><span class="text-slate-400">Penyebab:</span> ${e.penyebab}</p>` : ""}
+            ${e.uraian    ? `<p class="text-xs text-slate-600 mb-1"><span class="text-slate-400">Tindak lanjut:</span> ${e.uraian}</p>` : ""}
+            ${e.keterangan? `<p class="text-xs text-slate-600 mb-1"><span class="text-slate-400">Keterangan:</span> ${e.keterangan}</p>` : ""}
+            <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-400 mt-1.5">
+              ${e.penanggungJawab ? `<span>PJ: ${e.penanggungJawab}</span>` : ""}
+              ${e.targetWaktu     ? `<span>Target: ${e.targetWaktu}</span>` : ""}
+              ${e.biaya           ? `<span>Biaya: ${fmtJt(e.biaya, 1)}</span>` : ""}
+            </div>
+          </div>`;
+      });
+    }
+  } else {
+    html += `<p class="text-xs text-slate-400 pt-3 border-t border-slate-100">
+      Detail evaluasi dan tindak lanjut hanya dapat dilihat oleh Direksi dan admin.</p>`;
+  }
+
+  document.getElementById("drawerIsi").innerHTML = html;
+  document.getElementById("sarmutDrawerBg").classList.remove("hidden");
+  document.getElementById("sarmutDrawer").classList.remove("hidden");
+
+  gambarTrenSarmut(x);
+  gambarTabelBulan(x);
+}
+
+function tutupDetail() {
+  document.getElementById("sarmutDrawerBg").classList.add("hidden");
+  document.getElementById("sarmutDrawer").classList.add("hidden");
+  if (chartSarmut) { chartSarmut.destroy(); chartSarmut = null; }
+}
+
+function gambarTabelBulan(x) {
+  const ada = x.seri.filter(s => s.status !== "kosong");
+  if (!ada.length) {
+    document.getElementById("sarmutTabelBulan").innerHTML =
+      `<p class="text-xs text-slate-400">Belum ada data bulanan.</p>`;
+    return;
+  }
+  let h = `<div class="flex flex-wrap gap-1.5">`;
+  x.seri.forEach(s => {
+    if (s.status === "kosong") return;
+    const w = S_WARNA[s.status] || S_WARNA.kosong;
+    const isi = s.status === "belum_diukur" ? "TBA"
+      : s.status === "rusak" ? "!"
+      : sFmt(s.angka, x.satuan);
+    h += `<div class="border border-slate-200 rounded px-2 py-1 text-center min-w-[62px]" title="${s.teks || ""}">
+            <p class="text-[10px] text-slate-400">${s.bulan}</p>
+            <p class="text-xs font-medium ${w.teks}">${isi}</p>
+          </div>`;
+  });
+  h += `</div>`;
+  document.getElementById("sarmutTabelBulan").innerHTML = h;
+}
+
+function gambarTrenSarmut(x) {
+  const el = document.getElementById("chartSarmutDetail");
+  if (!el || typeof Chart === "undefined") return;
+  if (chartSarmut) { chartSarmut.destroy(); chartSarmut = null; }
+
+  const isPersen = x.satuan === "persen";
+  const nilai = x.seri.map(s => (s.angka === null || s.angka === undefined) ? null : (isPersen ? s.angka * 100 : s.angka));
+  const warnaTitik = x.seri.map(s =>
+    s.status === "tercapai" ? "#0d9488" :
+    s.status === "tidak_tercapai" ? "#dc2626" :
+    s.status === "rusak" ? "#f59e0b" : "#cbd5e1");
+
+  const ds = [{
+    label: "Capaian",
+    data: nilai,
+    borderColor: "#0f766e",
+    backgroundColor: "rgba(13,148,136,.08)",
+    pointBackgroundColor: warnaTitik,
+    pointBorderColor: warnaTitik,
+    pointRadius: 4,
+    tension: .3,
+    spanGaps: true,
+    fill: true,
+  }];
+
+  const t = Number(x.targetNilai);
+  if (!isNaN(t) && x.targetNilai !== "" && x.targetNilai !== null) {
+    ds.push({
+      label: "Target",
+      data: x.seri.map(() => isPersen ? t * 100 : t),
+      borderColor: "#94a3b8",
+      borderDash: [6, 4],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: false,
+    });
+  }
+
+  chartSarmut = new Chart(el, {
+    type: "line",
+    data: { labels: x.seri.map(s => s.bulan), datasets: ds },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true, labels: { boxWidth: 12, font: { size: 10 } } },
+        tooltip: {
+          callbacks: {
+            label: c => c.dataset.label + ": " + (isPersen ? fmtPct(c.parsed.y) + "%" : c.parsed.y),
+          },
+        },
+      },
+      scales: {
+        y: { ticks: { font: { size: 10 }, callback: v => isPersen ? v + "%" : v } },
+        x: { ticks: { font: { size: 10 } } },
+      },
+    },
   });
 }
 
