@@ -678,7 +678,49 @@ async function showDashboard() {
   document.getElementById("statusPanel").classList.toggle("hidden", !isStaff);
   if (isStaff) await refreshStatusPanel();
 
-  await loadRingkasan();
+  await bukaTampilanUtama();
+}
+
+/**
+ * Membangun navigasi & membuka halaman pertama yang boleh dilihat user ini.
+ * Ditambahkan 2026-08-01 (Tahap 11o, bug dilaporkan Doel): DULU logika ini
+ * menumpang di respons `getRingkasanEksekutif` (p1) — kalau p1 gagal, nav
+ * TIDAK PERNAH dibangun dan seluruh dashboard macet. Itu selalu aman waktu
+ * SEMUA user boleh lihat p1, tapi sejak akses tab bisa dibatasi per user,
+ * p1 sendiri bisa saja tidak diizinkan. Sekarang dipisah: gerbang "data
+ * belum dipublikasikan" (khusus Direksi) dicek lewat `getStatus` (aksi
+ * yang tidak pernah dibatasi per tab), baru sesudahnya navigasi dibangun
+ * dan halaman pertama yang BENAR-BENAR boleh dia lihat yang dibuka —
+ * bukan p1 yang di-hardcode.
+ */
+async function bukaTampilanUtama() {
+  const role = String(currentUser.role || "").toLowerCase();
+
+  if (role === "direksi") {
+    const st = await apiPost({ action: "getStatus" });
+    if (!st.ok || !st.dataSiap) {
+      document.getElementById("periodeLabel").textContent = st.periode ? "Periode: " + st.periode : "—";
+      document.getElementById("notReadyPanel").classList.remove("hidden");
+      PAGES.forEach(p => { const el = document.getElementById(p.panel); if (el) el.classList.add("hidden"); });
+      document.getElementById("pageNav").classList.add("hidden");
+      return;
+    }
+  }
+  document.getElementById("notReadyPanel").classList.add("hidden");
+
+  const halamanBoleh = pagesTampil();
+  if (!halamanBoleh.length) {
+    // Belum pernah terjadi lewat alur pendaftaran normal (checkbox akses
+    // selalu minimal 1), tapi dijaga kalau admin sampai menyisakan nol tab.
+    document.getElementById("pageNav").classList.add("hidden");
+    alert("Akun ini belum memiliki akses ke tab mana pun. Hubungi admin untuk mengatur akses.");
+    return;
+  }
+
+  document.getElementById("pageNav").classList.remove("hidden");
+  buildPageNav();
+  page = halamanBoleh.some(p => p.id === page) ? page : halamanBoleh[0].id;
+  switchPage(page);
 }
 
 async function refreshStatusPanel() {
@@ -700,31 +742,33 @@ async function handleToggleStatus() {
   const j = await apiPost({ action: "setStatus", dataSiap: next, periode: lastPeriode });
   if (!j.ok) return alert(j.error || "Gagal mengubah status.");
   await refreshStatusPanel();
-  await loadRingkasan();
+  // Segarkan cache Ringkasan Eksekutif HANYA kalau staf/admin ini memang
+  // diizinkan lihat tab itu — kalau tidak, memanggilnya percuma memicu
+  // pesan "tidak memiliki akses" padahal cuma mau toggle status publikasi.
+  if (pagesTampil().some(p => p.id === "p1")) await loadRingkasan();
 }
 
+/**
+ * Loader khusus halaman p1 (Ringkasan Eksekutif) — pola sama seperti
+ * `loadArap`/`loadSarmut`/`loadArusKasHarian`: dipanggil lewat `onOpen`
+ * saat tab ini pertama kali dibuka, BUKAN lagi dari bootstrap dashboard
+ * (lihat `bukaTampilanUtama`). Gerbang "data belum dipublikasikan" untuk
+ * Direksi sudah ditangani lebih awal di `bukaTampilanUtama` lewat
+ * `getStatus`, jadi kalau fungsi ini sempat terpanggil, harusnya `dataSiap`
+ * selalu benar untuk Direksi — pengecekan di bawah tetap dijaga sebagai
+ * jaring pengaman kalau ada kondisi balapan (race condition).
+ */
 async function loadRingkasan() {
   const j = await apiPost({ action: "getRingkasanEksekutif" });
   if (!j.ok) { alert(j.error || "Gagal memuat data."); return; }
-
-  if (!j.dataSiap) {
-    document.getElementById("periodeLabel").textContent = j.periode ? "Periode: " + j.periode : "—";
-    document.getElementById("notReadyPanel").classList.remove("hidden");
-    PAGES.forEach(p => { const el = document.getElementById(p.panel); if (el) el.classList.add("hidden"); });
-    document.getElementById("pageNav").classList.add("hidden");
-    return;
-  }
-  document.getElementById("notReadyPanel").classList.add("hidden");
-  document.getElementById("pageNav").classList.remove("hidden");
-  buildPageNav();
+  if (!j.dataSiap) return;
 
   series = j.bulanan || [];
   lastPeriode = series.length ? series[series.length - 1].bulan : (j.periode || "");
   mode = "bulan";
   sel = periodList().length - 1;
   await loadVolume(); // data volume segmen (sekali, lalu cache)
-  switchPage(page); // pertahankan halaman aktif (default p1)
-  if (page === "p1") render();
+  render();
 }
 
 async function loadVolume() {
@@ -754,7 +798,7 @@ async function loadVolume() {
  * entrinya SEBELUM p5 di sini (bukan di akhir array), supaya urutan tampil
  * langsung benar tanpa perlu field urutan terpisah. */
 const PAGES = [
-  { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); } },
+  { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); else loadRingkasan(); } },
   { id: "p2", label: "Piutang & Hutang",    panel: "page2Panel",  periode: "Posisi per tanggal berjalan (snapshot)", onOpen: loadArap },
   { id: "p5", label: "Arus Kas Harian",     panel: "page5Panel",  periode: "Memuat…", onOpen: loadArusKasHarian },
   { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
@@ -803,9 +847,18 @@ function buildPageNav() {
 }
 
 function switchPage(p) {
-  // Kalau halaman tidak boleh dilihat (mis. staf mengetik p4 lewat konsol),
-  // lempar balik ke halaman pertama. Gerbang sebenarnya tetap di server.
-  if (!pagesTampil().some(x => x.id === p)) p = "p1";
+  // Kalau halaman tidak boleh dilihat (mis. staf mengetik p3 lewat konsol,
+  // atau sisa state lama), lempar balik ke halaman PERTAMA YANG BOLEH DIA
+  // LIHAT — dulu ini hardcode ke "p1", tapi itu salah kalau p1 sendiri
+  // sedang dibatasi untuk user ini (Tahap 11o, dilaporkan Doel 1 Agu 2026).
+  // Gerbang sebenarnya tetap di server; ini cuma supaya pesannya jelas.
+  const halamanBoleh = pagesTampil();
+  if (!halamanBoleh.length) return; // ditangani di bukaTampilanUtama()
+  if (!halamanBoleh.some(x => x.id === p)) {
+    const namaTujuan = (PAGES.find(x => x.id === p) || {}).label || "ini";
+    alert(`Anda tidak memiliki akses ke tab "${namaTujuan}". Hubungi admin kalau ini seharusnya diizinkan.`);
+    p = halamanBoleh[0].id;
+  }
   page = p;
   const aktif = PAGES.find(x => x.id === p) || PAGES[0];
 
