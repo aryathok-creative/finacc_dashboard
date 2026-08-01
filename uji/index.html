@@ -460,6 +460,7 @@
     <select id="tuRole" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4">
       <option value="staff">staff — input & publikasi data</option>
       <option value="direksi">direksi — lihat saja</option>
+      <option value="viewer">viewer — lihat saja, tanpa publikasi (mis. marketing manager)</option>
       <option value="admin">admin — kelola user</option>
     </select>
 
@@ -693,10 +694,16 @@ async function showDashboard() {
  * dan halaman pertama yang BENAR-BENAR boleh dia lihat yang dibuka —
  * bukan p1 yang di-hardcode.
  */
+// Peran yang MURNI lihat saja, tunduk gerbang "data belum dipublikasikan"
+// — cermin dari `_perananLihatSaja_` di Code.gs. "viewer" ditambahkan
+// 2026-08-01 supaya user seperti marketing manager bisa didaftarkan
+// tanpa ikut dapat tombol publikasi milik role "staff".
+const PERAN_LIHAT_SAJA = ["direksi", "viewer"];
+
 async function bukaTampilanUtama() {
   const role = String(currentUser.role || "").toLowerCase();
 
-  if (role === "direksi") {
+  if (PERAN_LIHAT_SAJA.includes(role)) {
     const st = await apiPost({ action: "getStatus" });
     if (!st.ok || !st.dataSiap) {
       document.getElementById("periodeLabel").textContent = st.periode ? "Periode: " + st.periode : "—";
