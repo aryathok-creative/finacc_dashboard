@@ -14,7 +14,6 @@
      text-sm font-semibold py-2 px-4 shadow-sm">
   ⚠️ LINGKUNGAN UJI — angka di halaman ini tidak boleh dipakai untuk pelaporan
 </div>
-
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Chart.js: utama dari jsdelivr; kalau gagal, coba cdnjs (beberapa jaringan memblokir salah satunya) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
@@ -463,10 +462,46 @@
       <option value="direksi">direksi — lihat saja</option>
       <option value="admin">admin — kelola user</option>
     </select>
+
+    <label class="block text-xs text-slate-500 mb-1">Akses tab</label>
+    <div class="flex items-center gap-4 mb-2 text-xs text-slate-600">
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="tuAksesMode" value="semua" checked onchange="tuToggleAksesBox()"> Semua tab sesuai peran (default)
+      </label>
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="tuAksesMode" value="tertentu" onchange="tuToggleAksesBox()"> Hanya tab tertentu
+      </label>
+    </div>
+    <div id="tuAksesBox" class="hidden grid grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 mb-4 text-xs text-slate-600"></div>
+
     <p id="tuError" class="text-xs text-red-600 mb-3 hidden"></p>
     <div class="flex gap-2">
       <button onclick="tutupTambahUser()" class="flex-1 text-sm border border-slate-200 rounded-lg py-2 text-slate-600 hover:bg-slate-50">Batal</button>
       <button id="tuBtn" onclick="simpanUserBaru()" class="flex-1 text-sm bg-teal-600 text-white rounded-lg py-2 font-medium hover:bg-teal-700">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: ATUR AKSES TAB (user yang sudah ada) ============ -->
+<div id="modalAksesUser" class="hidden fixed inset-0 bg-black/40 items-center justify-center px-4 z-50">
+  <div class="bg-white rounded-xl w-full max-w-sm p-5">
+    <h3 class="text-sm font-semibold text-slate-800 mb-1">Atur Akses Tab</h3>
+    <p id="auUntuk" class="text-xs text-slate-500 mb-4"></p>
+
+    <div class="flex items-center gap-4 mb-2 text-xs text-slate-600">
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="auAksesMode" value="semua" onchange="auToggleAksesBox()"> Semua tab sesuai peran (default)
+      </label>
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="auAksesMode" value="tertentu" onchange="auToggleAksesBox()"> Hanya tab tertentu
+      </label>
+    </div>
+    <div id="auAksesBox" class="hidden grid grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 mb-4 text-xs text-slate-600"></div>
+
+    <p id="auError" class="text-xs text-red-600 mb-3 hidden"></p>
+    <div class="flex gap-2">
+      <button onclick="tutupAksesUser()" class="flex-1 text-sm border border-slate-200 rounded-lg py-2 text-slate-600 hover:bg-slate-50">Batal</button>
+      <button id="auBtn" onclick="simpanAksesUser()" class="flex-1 text-sm bg-teal-600 text-white rounded-lg py-2 font-medium hover:bg-teal-700">Simpan</button>
     </div>
   </div>
 </div>
@@ -737,9 +772,22 @@ const PAGES = [
  */
 function pagesTampil() {
   const admin = String((currentUser && currentUser.role) || "").toLowerCase().includes("admin");
-  return PAGES.filter(p => !p.adminSaja || admin)
-    .sort((a, b) => (a.id === "p4" ? 1 : 0) - (b.id === "p4" ? 1 : 0));
+  // Akses tab per user (Tahap 12) — lapisan TAMBAHAN di atas peran, bukan
+  // pengganti. Kosong = tidak dibatasi (default, kompatibel dengan user
+  // lama). Admin tidak pernah dibatasi lapisan ini, sama seperti di server
+  // (lihat _halamanDiizinkan_ di Code.gs) — supaya tidak bisa mengunci diri
+  // sendiri. Gerbang SUNGGUHAN tetap di server; ini cuma kosmetik.
+  const daftarHalaman = (currentUser && currentUser.halamanDiizinkan) || [];
+  return PAGES.filter(p => {
+    if (p.adminSaja) return admin;
+    if (admin || !daftarHalaman.length) return true;
+    return daftarHalaman.includes(p.id);
+  }).sort((a, b) => (a.id === "p4" ? 1 : 0) - (b.id === "p4" ? 1 : 0));
 }
+
+// Daftar tab yang bisa dibatasi lewat "Akses tab" (Tahap 12). "Kelola User"
+// (p4) sengaja tidak masuk sini — itu tetap murni lewat adminSaja.
+const AKSES_HALAMAN_OPSI = PAGES.filter(p => !p.adminSaja).map(p => ({ id: p.id, label: p.label }));
 
 function buildPageNav() {
   const wrap = document.getElementById("pageNavBtns");
@@ -1101,15 +1149,28 @@ function renderUsers(j) {
     if (u.terkunci) status += `<br><span class="text-amber-700">terkunci — ${u.gagalLogin}x gagal login</span>`;
     else if (u.mustChange) status += `<br><span class="text-slate-400">belum ganti password awal</span>`;
 
+    // Badge akses tab — admin selalu dianggap "semua" (server juga begitu),
+    // jadi tidak perlu ditampilkan/diatur untuk baris admin.
+    const admin = String(u.role || "").toLowerCase().includes("admin");
+    const daftar = u.halamanDiizinkan || [];
+    let aksesTeks;
+    if (admin) aksesTeks = `<span class="text-slate-400">Semua tab</span>`;
+    else if (!daftar.length) aksesTeks = `<span class="text-slate-400">Semua tab</span>`;
+    else aksesTeks = `<span class="text-amber-700">${daftar.map(id => (AKSES_HALAMAN_OPSI.find(o => o.id === id) || {}).label || id).join(", ")}</span>`;
+
     tb.insertAdjacentHTML("beforeend", `
       <tr class="border-b border-slate-50">
         <td class="py-2.5 pr-2 text-slate-700">${u.nama || "—"}${sayaSendiri ? ' <span class="text-slate-400">(Anda)</span>' : ""}</td>
         <td class="py-2.5 px-2 text-slate-500">${u.email}</td>
         <td class="py-2.5 px-2 text-slate-500">${u.role || "—"}</td>
-        <td class="py-2.5 px-2 leading-relaxed">${status}</td>
+        <td class="py-2.5 px-2 leading-relaxed">${status}<br>${aksesTeks}</td>
         <td class="py-2.5 pl-2 text-right whitespace-nowrap">
           <button onclick="resetPasswordUser('${u.email}','${(u.nama || "").replace(/'/g, "")}')"
             class="text-teal-700 hover:underline">Reset password</button>
+          ${admin ? "" : `
+            <span class="text-slate-200 mx-1">|</span>
+            <button onclick='bukaAksesUser(${JSON.stringify(u.email)}, ${JSON.stringify(u.nama || "")}, ${JSON.stringify(daftar)})'
+              class="text-teal-700 hover:underline">Atur akses</button>`}
           ${sayaSendiri ? "" : `
             <span class="text-slate-200 mx-1">|</span>
             <button onclick="ubahAktif('${u.email}', ${!u.aktif})"
@@ -1156,10 +1217,29 @@ async function ubahAktif(email, jadiAktif) {
   loadUsers();
 }
 
+/* ---------------- akses tab: kotak checkbox bersama ---------------- */
+function _isiKotakAkses_(boxId, terpilih) {
+  const box = document.getElementById(boxId);
+  box.innerHTML = AKSES_HALAMAN_OPSI.map(o => `
+    <label class="flex items-center gap-1.5">
+      <input type="checkbox" value="${o.id}" ${terpilih.includes(o.id) ? "checked" : ""}> ${o.label}
+    </label>`).join("");
+}
+function _bacaKotakAkses_(boxId) {
+  return Array.from(document.querySelectorAll(`#${boxId} input[type=checkbox]:checked`)).map(el => el.value);
+}
+
 /* ---------------- tambah user ---------------- */
+function tuToggleAksesBox() {
+  const tertentu = document.querySelector('input[name="tuAksesMode"]:checked').value === "tertentu";
+  document.getElementById("tuAksesBox").classList.toggle("hidden", !tertentu);
+}
 function bukaTambahUser() {
   ["tuNama", "tuEmail"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("tuRole").value = "staff";
+  document.querySelector('input[name="tuAksesMode"][value="semua"]').checked = true;
+  _isiKotakAkses_("tuAksesBox", []);
+  tuToggleAksesBox();
   document.getElementById("tuError").classList.add("hidden");
   const m = document.getElementById("modalTambahUser");
   m.classList.remove("hidden"); m.classList.add("flex");
@@ -1172,17 +1252,75 @@ async function simpanUserBaru() {
   const nama = document.getElementById("tuNama").value.trim();
   const email = document.getElementById("tuEmail").value.trim();
   const role = document.getElementById("tuRole").value;
+  const mode = document.querySelector('input[name="tuAksesMode"]:checked').value;
   const err = document.getElementById("tuError");
   const btn = document.getElementById("tuBtn");
 
+  let halamanDiizinkan = [];
+  if (mode === "tertentu") {
+    halamanDiizinkan = _bacaKotakAkses_("tuAksesBox");
+    if (!halamanDiizinkan.length) {
+      err.textContent = "Pilih minimal satu tab, atau gunakan \"Semua tab sesuai peran\".";
+      err.classList.remove("hidden");
+      return;
+    }
+  }
+
   err.classList.add("hidden");
   btn.disabled = true; btn.textContent = "Menyimpan…";
-  const j = await apiPost({ action: "tambahUser", nama, email, role });
+  const j = await apiPost({ action: "tambahUser", nama, email, role, halamanDiizinkan });
   btn.disabled = false; btn.textContent = "Simpan";
 
   if (!j.ok) { err.textContent = j.error || "Gagal menambah user."; err.classList.remove("hidden"); return; }
   tutupTambahUser();
   tampilkanTemp(j.tempPassword, `Untuk ${nama} (${j.email})`);
+  loadUsers();
+}
+
+/* ---------------- atur akses tab (user yang sudah ada) ---------------- */
+let auEmailAktif = "";
+function auToggleAksesBox() {
+  const tertentu = document.querySelector('input[name="auAksesMode"]:checked').value === "tertentu";
+  document.getElementById("auAksesBox").classList.toggle("hidden", !tertentu);
+}
+function bukaAksesUser(email, nama, halamanDiizinkan) {
+  auEmailAktif = email;
+  document.getElementById("auUntuk").textContent = `Untuk ${nama || email} (${email})`;
+  const dibatasi = !!(halamanDiizinkan && halamanDiizinkan.length);
+  document.querySelector(`input[name="auAksesMode"][value="${dibatasi ? "tertentu" : "semua"}"]`).checked = true;
+  _isiKotakAkses_("auAksesBox", halamanDiizinkan || []);
+  auToggleAksesBox();
+  document.getElementById("auError").classList.add("hidden");
+  const m = document.getElementById("modalAksesUser");
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+function tutupAksesUser() {
+  const m = document.getElementById("modalAksesUser");
+  m.classList.add("hidden"); m.classList.remove("flex");
+  auEmailAktif = "";
+}
+async function simpanAksesUser() {
+  const mode = document.querySelector('input[name="auAksesMode"]:checked').value;
+  const err = document.getElementById("auError");
+  const btn = document.getElementById("auBtn");
+
+  let halamanDiizinkan = [];
+  if (mode === "tertentu") {
+    halamanDiizinkan = _bacaKotakAkses_("auAksesBox");
+    if (!halamanDiizinkan.length) {
+      err.textContent = "Pilih minimal satu tab, atau gunakan \"Semua tab sesuai peran\".";
+      err.classList.remove("hidden");
+      return;
+    }
+  }
+
+  err.classList.add("hidden");
+  btn.disabled = true; btn.textContent = "Menyimpan…";
+  const j = await apiPost({ action: "setHalamanDiizinkan", emailTarget: auEmailAktif, halamanDiizinkan });
+  btn.disabled = false; btn.textContent = "Simpan";
+
+  if (!j.ok) { err.textContent = j.error || "Gagal mengubah akses."; err.classList.remove("hidden"); return; }
+  tutupAksesUser();
   loadUsers();
 }
 
