@@ -263,24 +263,37 @@
         <span id="ak5Checking" class="text-xs px-3 py-1 rounded-full"></span>
       </div>
 
-      <!-- KPI cards -->
+      <!-- KPI cards — diwarnai per makna (Tahap 11o, redesain visual):
+           hijau=masuk, merah=keluar, biru/merah dinamis=bersih, ungu=total saldo -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Cash Inflow</p>
-          <p id="ak5Inflow" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
+          <p class="text-xs text-teal-700">Cash Inflow</p>
+          <p id="ak5Inflow" class="text-xl font-semibold text-teal-800 mt-1">—</p>
         </div>
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Cash Outflow</p>
-          <p id="ak5Outflow" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="bg-red-50 border border-red-100 rounded-xl p-4">
+          <p class="text-xs text-red-700">Cash Outflow</p>
+          <p id="ak5Outflow" class="text-xl font-semibold text-red-800 mt-1">—</p>
         </div>
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Kenaikan/(Penurunan) Bersih</p>
-          <p id="ak5Bersih" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div id="ak5BersihCard" class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p id="ak5BersihLabel" class="text-xs text-blue-700">Kenaikan/(Penurunan) Bersih</p>
+          <p id="ak5Bersih" class="text-xl font-semibold text-blue-800 mt-1">—</p>
         </div>
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Total Saldo Akhir (bulan ini)</p>
-          <p id="ak5TotalSaldo" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <p class="text-xs text-purple-700">Total Saldo Akhir (bulan ini)</p>
+          <p id="ak5TotalSaldo" class="text-xl font-semibold text-purple-800 mt-1">—</p>
         </div>
+      </div>
+
+      <!-- grafik tren total saldo akhir (Tahap 11o) — data nyata dari
+           beberapa snapshot terakhir, BUKAN ilustrasi. Kalau baru ada
+           1 titik (snapshot belum berjalan lama), tampilkan pesan,
+           bukan grafik yang terlihat kosong/aneh -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-3">Tren Total Saldo Akhir</p>
+        <div id="ak5TrenWrap" class="relative" style="height:220px">
+          <canvas id="ak5ChartTren"></canvas>
+        </div>
+        <p id="ak5TrenKosong" class="hidden text-xs text-slate-400 text-center py-8"></p>
       </div>
 
       <!-- tabel arus kas 3 kolom -->
@@ -581,6 +594,7 @@ let sarmutCache = null;      // data halaman 3 (di-fetch saat pertama dibuka)
 let sarmutTapis = "semua";   // semua | merah | hijau | abu
 let chartSarmut = null;      // grafik tren di panel detail
 let arusKasCache = null;     // data halaman 5 — Arus Kas Harian (di-fetch saat pertama dibuka)
+let chartArusKasTren = null; // grafik tren Total Saldo Akhir (Tahap 11o)
 
 /* ============================================================
  * LAPISAN API
@@ -1778,10 +1792,19 @@ function renderArusKasHarian(j) {
   document.getElementById("ak5Inflow").textContent = fmtRp(j.arusKas.cashInflow.hariIni);
   document.getElementById("ak5Outflow").textContent = fmtRp(j.arusKas.cashOutflow.hariIni);
   const bersih = j.arusKas.kenaikanBersih.hariIni;
+  const negatif = bersih !== null && bersih < 0;
+  const bersihCard = document.getElementById("ak5BersihCard");
+  const bersihLabel = document.getElementById("ak5BersihLabel");
   const bersihEl = document.getElementById("ak5Bersih");
   bersihEl.textContent = fmtRp(bersih);
-  bersihEl.className = "text-xl font-semibold mt-1 " + (bersih !== null && bersih < 0 ? "text-red-600" : "text-slate-800");
+  // Kartu ini dinamis: biru kalau naik, merah kalau turun — bukan cuma teksnya
+  // yang berubah warna (dulu), supaya sekali lihat langsung kebaca dari jauh.
+  bersihCard.className = "rounded-xl p-4 border " + (negatif ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100");
+  bersihLabel.className = "text-xs " + (negatif ? "text-red-700" : "text-blue-700");
+  bersihEl.className = "text-xl font-semibold mt-1 " + (negatif ? "text-red-800" : "text-blue-800");
   document.getElementById("ak5TotalSaldo").textContent = fmtRp(j.saldoBank.totalAkhir.bulanIni);
+
+  renderTrenArusKas(j.tren || []);
 
   // tabel arus kas — 3 kolom (Hari Ini / s.d Bulan Ini / Bulan Lalu)
   const baris3 = (label, o) => `<tr class="border-t border-slate-100">
@@ -1827,6 +1850,64 @@ function renderArusKasHarian(j) {
   }
   tabelRincian("ak5TabelInflow", j.inflow);
   tabelRincian("ak5TabelOutflow", j.outflow);
+}
+
+/**
+ * Grafik tren Total Saldo Akhir (Tahap 11o, redesain visual) — data NYATA
+ * dari `_ak5BangunTren_` di backend (beberapa snapshot terakhir), bukan
+ * ilustrasi. Kalau baru ada <2 titik (snapshot baru mulai berjalan),
+ * tampilkan pesan yang jujur alih-alih grafik yang terlihat kosong/aneh.
+ */
+function fmtTglPendek(iso) {
+  const BULAN = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || !p[1]) return String(iso);
+  return p[2] + " " + BULAN[p[1] - 1];
+}
+function renderTrenArusKas(tren) {
+  const wrap = document.getElementById("ak5TrenWrap");
+  const kosong = document.getElementById("ak5TrenKosong");
+
+  if (!tren.length || tren.length < 2 || typeof Chart === "undefined") {
+    wrap.classList.add("hidden");
+    kosong.classList.remove("hidden");
+    kosong.textContent = !tren.length
+      ? "Belum ada data tren."
+      : tren.length < 2
+        ? `Baru ada ${tren.length} hari data snapshot — grafik akan tampil setelah datanya lebih dari 1 hari.`
+        : "Grafik tidak tersedia di browser ini.";
+    return;
+  }
+  wrap.classList.remove("hidden");
+  kosong.classList.add("hidden");
+
+  if (chartArusKasTren) chartArusKasTren.destroy();
+  chartArusKasTren = new Chart(document.getElementById("ak5ChartTren"), {
+    type: "line",
+    data: {
+      labels: tren.map(t => fmtTglPendek(t.tanggal)),
+      datasets: [{
+        label: "Total Saldo Akhir",
+        data: tren.map(t => Math.round(t.totalSaldoAkhir / 1e6 * 10) / 10),
+        borderColor: "#7c3aed",
+        backgroundColor: "#7c3aed22",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+      },
+      scales: {
+        y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } },
+      },
+    },
+  });
 }
 
 /* ============================================================
