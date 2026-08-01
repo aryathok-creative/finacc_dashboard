@@ -236,6 +236,126 @@
     </div>
   </div>
 
+  <!-- ============ HALAMAN 5: ARUS KAS HARIAN ============ -->
+  <div id="page5Panel" class="hidden">
+
+    <div id="page5Kosong" class="hidden bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500"></div>
+
+    <div id="page5Isi" class="hidden">
+      <!-- banner data belum diperbarui (modul-harian §2.1) -->
+      <div id="ak5Banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-sm text-amber-800 font-medium"></div>
+
+      <!-- peringatan (ditampilkan ke semua peran — modul-harian §3 & §4.3) -->
+      <div id="ak5Peringatan" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4"></div>
+
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-sm font-medium text-slate-700">Ringkasan Hari Ini</p>
+        <span id="ak5Checking" class="text-xs px-3 py-1 rounded-full"></span>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p class="text-xs text-slate-500">Cash Inflow</p>
+          <p id="ak5Inflow" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p class="text-xs text-slate-500">Cash Outflow</p>
+          <p id="ak5Outflow" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p class="text-xs text-slate-500">Kenaikan/(Penurunan) Bersih</p>
+          <p id="ak5Bersih" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p class="text-xs text-slate-500">Total Saldo Akhir (bulan ini)</p>
+          <p id="ak5TotalSaldo" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        </div>
+      </div>
+
+      <!-- tabel arus kas 3 kolom -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Arus Kas</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">Pos</th>
+            <th class="text-right font-normal pb-2">Hari Ini</th>
+            <th class="text-right font-normal pb-2">s.d Bulan Ini</th>
+            <th class="text-right font-normal pb-2">Bulan Lalu</th>
+          </tr></thead>
+          <tbody id="ak5TabelArusKas"></tbody>
+        </table>
+      </div>
+
+      <!-- saldo per bank -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+          <p class="text-sm font-medium text-slate-700 mb-2">Saldo Awal per Bank</p>
+          <table class="w-full text-xs">
+            <thead><tr class="text-slate-400 border-b border-slate-100">
+              <th class="text-left font-normal pb-2">Bank</th>
+              <th class="text-right font-normal pb-2">Bulan Ini</th>
+              <th class="text-right font-normal pb-2">Bulan Lalu</th>
+            </tr></thead>
+            <tbody id="ak5TabelSaldoAwal"></tbody>
+          </table>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+          <p class="text-sm font-medium text-slate-700 mb-2">Saldo Akhir per Bank</p>
+          <table class="w-full text-xs">
+            <thead><tr class="text-slate-400 border-b border-slate-100">
+              <th class="text-left font-normal pb-2">Bank</th>
+              <th class="text-right font-normal pb-2">Bulan Ini</th>
+              <th class="text-right font-normal pb-2">Bulan Lalu</th>
+            </tr></thead>
+            <tbody id="ak5TabelSaldoAkhir"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PRK -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Pinjaman Rekening Koran (PRK)</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">Pos</th>
+            <th class="text-right font-normal pb-2">Bulan Ini</th>
+            <th class="text-right font-normal pb-2">Bulan Lalu</th>
+          </tr></thead>
+          <tbody id="ak5TabelPrk"></tbody>
+        </table>
+      </div>
+
+      <!-- rincian inflow / outflow -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+          <p class="text-sm font-medium text-slate-700 mb-2">Rincian Cash Inflow</p>
+          <table class="w-full text-xs">
+            <thead><tr class="text-slate-400 border-b border-slate-100">
+              <th class="text-left font-normal pb-2">Pos</th>
+              <th class="text-right font-normal pb-2">Hari Ini</th>
+              <th class="text-right font-normal pb-2">MTD</th>
+              <th class="text-right font-normal pb-2">Bln Lalu</th>
+            </tr></thead>
+            <tbody id="ak5TabelInflow"></tbody>
+          </table>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+          <p class="text-sm font-medium text-slate-700 mb-2">Rincian Cash Outflow</p>
+          <table class="w-full text-xs">
+            <thead><tr class="text-slate-400 border-b border-slate-100">
+              <th class="text-left font-normal pb-2">Pos</th>
+              <th class="text-right font-normal pb-2">Hari Ini</th>
+              <th class="text-right font-normal pb-2">MTD</th>
+              <th class="text-right font-normal pb-2">Bln Lalu</th>
+            </tr></thead>
+            <tbody id="ak5TabelOutflow"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ HALAMAN 4: KELOLA USER (admin) ============ -->
   <div id="page4Panel" class="hidden">
 
@@ -392,6 +512,7 @@ let volSeries = null; // data volume per segmen (bulanan, hanya 2026); null = be
 let sarmutCache = null;      // data halaman 3 (di-fetch saat pertama dibuka)
 let sarmutTapis = "semua";   // semua | merah | hijau | abu
 let chartSarmut = null;      // grafik tren di panel detail
+let arusKasCache = null;     // data halaman 5 — Arus Kas Harian (di-fetch saat pertama dibuka)
 
 /* ============================================================
  * LAPISAN API
@@ -416,6 +537,13 @@ function fmtJt(v, d) {
   return "Rp " + v.toLocaleString("id-ID", { maximumFractionDigits: (d === undefined ? 1 : d) }) + " jt";
 }
 function fmtPct(v) { return v.toLocaleString("id-ID", { maximumFractionDigits: 1 }); }
+/** Rupiah PENUH (bukan "jt") — modul-harian §9: titik ribuan, negatif dalam kurung, kosong = strip. */
+function fmtRp(v) {
+  if (v === null || v === undefined) return "—";
+  const neg = v < 0;
+  const n = Math.round(Math.abs(v)).toLocaleString("id-ID");
+  return neg ? "(" + n + ")" : n;
+}
 function pctDelta(now, prev) { return (prev === null || prev === undefined || prev === 0) ? null : ((now - prev) / Math.abs(prev) * 100); }
 function chip(label, pct) {
   if (pct === null || pct === undefined)
@@ -464,7 +592,7 @@ function handleLogout() {
   // Semua cache dikosongkan supaya data user sebelumnya tidak terbawa
   // kalau ada orang lain login di komputer yang sama.
   authToken = null; currentUser = null; page = "p1";
-  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = [];
+  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null;
   document.getElementById("dashboardScreen").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("loginEmail").value = "";
@@ -549,17 +677,36 @@ async function loadVolume() {
  * Sekarang jadi daftar, supaya menambah halaman berikutnya tidak
  * perlu membongkar navigasi lagi.
  * ---------------------------------------------------------- */
+/* Urutan array di bawah INI = urutan tab yang tampil (buildPageNav mengikuti
+ * urutan ini apa adanya). Id (p1, p2, p5, ...) sengaja TIDAK harus berurutan
+ * dengan posisi array — id mengikuti urutan PEMBANGUNAN, posisi array
+ * mengikuti urutan TAMPILAN yang ditetapkan Doel 31 Jul 2026 (PRD §6):
+ *   Ringkasan Eksekutif, Piutang & Hutang, Penjualan Harian, Arus Kas Harian,
+ *   Sasaran Mutu, Kelola User.
+ * "Penjualan Harian" (p6, Tahap 12) BELUM ada — saat ditambahkan, sisipkan
+ * entrinya SEBELUM p5 di sini (bukan di akhir array), supaya urutan tampil
+ * langsung benar tanpa perlu field urutan terpisah. */
 const PAGES = [
   { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); } },
   { id: "p2", label: "Piutang & Hutang",    panel: "page2Panel",  periode: "Posisi per tanggal berjalan (snapshot)", onOpen: loadArap },
+  { id: "p5", label: "Arus Kas Harian",     panel: "page5Panel",  periode: "Memuat…", onOpen: loadArusKasHarian },
   { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
   { id: "p4", label: "Kelola User",         panel: "page4Panel",  periode: "Pengaturan akun pengguna", adminSaja: true, onOpen: loadUsers },
 ];
 
-/** Halaman yang boleh dilihat user yang sedang login. */
+/**
+ * Halaman yang boleh dilihat user yang sedang login.
+ *
+ * ATURAN TETAP (Doel, 31 Jul 2026): Kelola User SELALU di posisi paling
+ * kanan, apa pun menu baru yang ditambahkan setelahnya (p7 Anggaran, p8
+ * Pemeliharaan Data, dst.). Diterapkan sebagai sort di sini — bukan
+ * sekadar disiplin menaruhnya di akhir array — supaya penambahan menu
+ * berikutnya tidak bisa tidak sengaja menaruh sesuatu setelah "p4".
+ */
 function pagesTampil() {
   const admin = String((currentUser && currentUser.role) || "").toLowerCase().includes("admin");
-  return PAGES.filter(p => !p.adminSaja || admin);
+  return PAGES.filter(p => !p.adminSaja || admin)
+    .sort((a, b) => (a.id === "p4" ? 1 : 0) - (b.id === "p4" ? 1 : 0));
 }
 
 function buildPageNav() {
@@ -1332,6 +1479,124 @@ function gambarTrenSarmut(x) {
       },
     },
   });
+}
+
+/* ============================================================
+ * HALAMAN 5 (p5): ARUS KAS HARIAN
+ * Membaca snapshot Tahap 10 lewat action "getArusKasHarianDashboard" —
+ * TIDAK PERNAH memanggil mesin hitung mentah (PRD §8 lapis 1).
+ * ============================================================ */
+async function loadArusKasHarian() {
+  if (arusKasCache) { renderArusKasHarian(arusKasCache); return; }
+  const j = await apiPost({ action: "getArusKasHarianDashboard" });
+  if (!j.ok) { alert(j.error || "Gagal memuat data arus kas harian."); return; }
+  arusKasCache = j;
+  renderArusKasHarian(j);
+}
+
+function renderArusKasHarian(j) {
+  const kosong = document.getElementById("page5Kosong");
+  const isi = document.getElementById("page5Isi");
+
+  if (!j.adaData) {
+    kosong.textContent = j.pesan || "Belum ada data arus kas harian.";
+    kosong.classList.remove("hidden");
+    isi.classList.add("hidden");
+    return;
+  }
+  kosong.classList.add("hidden");
+  isi.classList.remove("hidden");
+
+  document.getElementById("periodeLabel").textContent = "Data per " + j.tanggal + " · diperbarui " + j.waktuDibuat;
+
+  // banner "belum diperbarui untuk hari ini" (modul-harian §2.1) — sejak
+  // 2026-08-01 warnanya makin mencolok seiring lama keterlambatan
+  // (PRD §13 no. 16), bukan cuma satu warna amber untuk semua kondisi.
+  const banner = document.getElementById("ak5Banner");
+  const KELAS_BANNER = {
+    normal:    "bg-amber-50 border border-amber-200 text-amber-800",
+    perhatian: "bg-orange-50 border border-orange-300 text-orange-800",
+    kritis:    "bg-red-50 border border-red-300 text-red-800",
+  };
+  if (j.terkini || !j.labelStatus) {
+    banner.classList.add("hidden");
+  } else {
+    banner.textContent = j.labelStatus;
+    const kelasWarna = KELAS_BANNER[j.levelKeterlambatan] || KELAS_BANNER.normal;
+    banner.className = "rounded-xl px-4 py-3 mb-4 text-sm font-medium " + kelasWarna;
+  }
+
+  // badge CHECKING
+  const badge = document.getElementById("ak5Checking");
+  if (j.checkingLolos === false) {
+    badge.textContent = "⚠ Perlu diperiksa — baris CHECKING tidak nol";
+    badge.className = "text-xs px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-200";
+  } else {
+    badge.textContent = "✓ Konsistensi data OK";
+    badge.className = "text-xs px-3 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-200";
+  }
+
+  // peringatan (ditampilkan ke semua peran, lihat catatan endpoint p5)
+  const per = document.getElementById("ak5Peringatan");
+  if (j.peringatan && j.peringatan.length) {
+    per.innerHTML = '<p class="text-xs font-medium text-amber-800 mb-1">Perlu diperhatikan:</p>' +
+      j.peringatan.map(p => `<p class="text-xs text-amber-700">• ${p}</p>`).join("");
+    per.classList.remove("hidden");
+  } else per.classList.add("hidden");
+
+  // KPI cards
+  document.getElementById("ak5Inflow").textContent = fmtRp(j.arusKas.cashInflow.hariIni);
+  document.getElementById("ak5Outflow").textContent = fmtRp(j.arusKas.cashOutflow.hariIni);
+  const bersih = j.arusKas.kenaikanBersih.hariIni;
+  const bersihEl = document.getElementById("ak5Bersih");
+  bersihEl.textContent = fmtRp(bersih);
+  bersihEl.className = "text-xl font-semibold mt-1 " + (bersih !== null && bersih < 0 ? "text-red-600" : "text-slate-800");
+  document.getElementById("ak5TotalSaldo").textContent = fmtRp(j.saldoBank.totalAkhir.bulanIni);
+
+  // tabel arus kas — 3 kolom (Hari Ini / s.d Bulan Ini / Bulan Lalu)
+  const baris3 = (label, o) => `<tr class="border-t border-slate-100">
+      <td class="py-1.5 text-slate-600">${label}</td>
+      <td class="py-1.5 text-right">${fmtRp(o.hariIni)}</td>
+      <td class="py-1.5 text-right">${fmtRp(o.mtd)}</td>
+      <td class="py-1.5 text-right">${fmtRp(o.bulanLalu)}</td>
+    </tr>`;
+  document.getElementById("ak5TabelArusKas").innerHTML =
+    baris3("Cash Inflow", j.arusKas.cashInflow) +
+    baris3("Cash Outflow", j.arusKas.cashOutflow) +
+    baris3("Kenaikan/(Penurunan) Bersih", j.arusKas.kenaikanBersih);
+
+  // saldo per bank — 2 kolom (Bulan Ini / Bulan Lalu), + baris Total dari sheet
+  function tabelSaldo(elId, daftar, total) {
+    let html = daftar.map(b => `<tr class="border-t border-slate-100">
+        <td class="py-1.5 text-slate-600">${b.label}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.bulanIni)}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.bulanLalu)}</td>
+      </tr>`).join("");
+    html += `<tr class="border-t border-slate-200 font-medium">
+        <td class="py-1.5 text-slate-800">Total (di sheet)</td>
+        <td class="py-1.5 text-right">${fmtRp(total.bulanIni)}</td>
+        <td class="py-1.5 text-right">${fmtRp(total.bulanLalu)}</td>
+      </tr>`;
+    document.getElementById(elId).innerHTML = html;
+  }
+  tabelSaldo("ak5TabelSaldoAwal", j.saldoBank.awal, j.saldoBank.totalAwal);
+  tabelSaldo("ak5TabelSaldoAkhir", j.saldoBank.akhir, j.saldoBank.totalAkhir);
+
+  // PRK — 2 kolom
+  document.getElementById("ak5TabelPrk").innerHTML = j.prk.map(p => `<tr class="border-t border-slate-100">
+      <td class="py-1.5 text-slate-600">${p.label}</td>
+      <td class="py-1.5 text-right">${fmtRp(p.bulanIni)}</td>
+      <td class="py-1.5 text-right">${fmtRp(p.bulanLalu)}</td>
+    </tr>`).join("");
+
+  // rincian inflow / outflow — 3 kolom + baris TOTAL
+  function tabelRincian(elId, obj) {
+    let html = obj.rincian.map(r => baris3(r.label, r)).join("");
+    html += baris3("TOTAL", { hariIni: obj.total.hariIni.total, mtd: obj.total.mtd.total, bulanLalu: obj.total.bulanLalu.total });
+    document.getElementById(elId).innerHTML = html;
+  }
+  tabelRincian("ak5TabelInflow", j.inflow);
+  tabelRincian("ak5TabelOutflow", j.outflow);
 }
 
 /* ============================================================
