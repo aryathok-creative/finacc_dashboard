@@ -2021,7 +2021,13 @@ function renderRincianChart(inflow, outflow) {
       type: "bar",
       data: {
         labels: data.rincian.map(r => r.label),
-        datasets: [{ data: data.rincian.map(r => r[rincianPeriodeAktif]), backgroundColor: warna }],
+        // Nilai outflow di data aslinya NEGATIF (uang keluar) — kalau dipakai
+        // apa adanya batangnya melebar ke kiri dan sumbunya jadi minus semua,
+        // sedangkan inflow tetap positif. Dipakai NILAI MUTLAK di sini supaya
+        // arah batang konsisten (selalu ke kanan) di kedua grafik — warna
+        // (teal/merah) dan judul kartu sudah cukup menandakan arahnya, tidak
+        // perlu tanda minus ikut membingungkan sumbu.
+        datasets: [{ data: data.rincian.map(r => Math.abs(r[rincianPeriodeAktif] || 0)), backgroundColor: warna }],
       },
       options: {
         indexAxis: "y",
