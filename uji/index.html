@@ -261,6 +261,83 @@
     </div>
   </div>
 
+  <!-- ============ HALAMAN 6: PENJUALAN HARIAN (REVENUE) ============ -->
+  <div id="page6Panel" class="hidden">
+
+    <div id="page6Kosong" class="hidden bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500"></div>
+
+    <div id="page6Isi" class="hidden">
+      <!-- banner data belum diperbarui (modul-harian §2.1, "berlaku sama untuk revenue harian") —
+           warna & ambang SENGAJA sama seperti p5 (Tahap 11k), lihat rv6Banner di JS -->
+      <div id="rv6Banner" class="hidden rounded-xl px-4 py-3 mb-4 text-sm font-medium"></div>
+
+      <!-- KPI cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
+          <p class="text-xs text-teal-700">Net Revenue — Periode</p>
+          <p id="rv6Net" class="text-xl font-semibold text-teal-800 mt-1">—</p>
+          <p id="rv6NetRata" class="text-[11px] text-teal-600 mt-0.5"></p>
+        </div>
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p class="text-xs text-blue-700">Jumlah Nota</p>
+          <p id="rv6Nota" class="text-xl font-semibold text-blue-800 mt-1">—</p>
+        </div>
+        <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
+          <p class="text-xs text-amber-700">Gross Revenue</p>
+          <p id="rv6Gross" class="text-xl font-semibold text-amber-800 mt-1">—</p>
+        </div>
+        <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <p class="text-xs text-purple-700">Diskon</p>
+          <p id="rv6Diskon" class="text-xl font-semibold text-purple-800 mt-1">—</p>
+        </div>
+      </div>
+
+      <!-- grafik tren net revenue (beberapa snapshot terakhir) -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-3">Tren Net Revenue Harian</p>
+        <div id="rv6TrenWrap" class="relative" style="height:220px">
+          <canvas id="rv6ChartTren"></canvas>
+        </div>
+        <p id="rv6TrenKosong" class="hidden text-xs text-slate-400 text-center py-8"></p>
+      </div>
+
+      <!-- ringkasan 3 kolom periode (modul-harian §6): Periode / MTD / Bulan Lalu Penuh -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Ringkasan</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">Pos</th>
+            <th class="text-right font-normal pb-2" id="rv6ColPeriode">Periode</th>
+            <th class="text-right font-normal pb-2" id="rv6ColMtd">MTD</th>
+            <th class="text-right font-normal pb-2" id="rv6ColBulanLalu">Bulan Lalu</th>
+          </tr></thead>
+          <tbody id="rv6TabelRingkasan"></tbody>
+        </table>
+        <p id="rv6RataKet" class="hidden text-xs text-slate-400 mt-2"></p>
+      </div>
+
+      <!-- dimensi (segmen/departemen/unit/pengirim) — DIRENDER LEWAT PERULANGAN
+           (PRD §7: "tabel dan drill-down dibuat dengan perulangan atas dimensi,
+           bukan menulis empat tabel terpisah"). Menambah dimensi baru di backend
+           = kartu baru muncul otomatis di sini, tanpa ubah HTML. -->
+      <div id="rv6DimensiWrap" class="space-y-4 mb-5"></div>
+
+      <!-- anomali bisnis (modul-harian §7 & §8 — HANYA temuan bisnis, tampil semua peran) -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-2">Anomali &amp; Temuan Bisnis</p>
+        <div id="rv6Anomali" class="space-y-1.5"></div>
+      </div>
+
+      <!-- pipa data — HANYA staf/admin (modul-harian §8), backend sudah menyaring
+           tapi elemen tetap disembunyikan default sampai datanya benar-benar ada -->
+      <div id="rv6PipaDataBox" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <p class="text-sm font-medium text-slate-700 mb-2">Temuan Pipa Data <span class="text-xs font-normal text-slate-400">(staf/admin saja)</span></p>
+        <div id="rv6PipaData" class="space-y-1"></div>
+        <p id="rv6TorchKet" class="text-xs text-slate-400 mt-2"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ HALAMAN 5: ARUS KAS HARIAN ============ -->
   <div id="page5Panel" class="hidden">
 
@@ -636,6 +713,8 @@ let arusKasCache = null;     // data halaman 5 — Arus Kas Harian (di-fetch saa
 let chartArusKasTren = null; // grafik tren Total Saldo Akhir (Tahap 11o)
 let chartRincianInflow = null, chartRincianOutflow = null; // grafik rincian pos (Tahap 11o)
 let rincianPeriodeAktif = "hariIni"; // hariIni | mtd | bulanLalu — dipakai KEDUA grafik rincian
+let revenueCache = null;     // data halaman 6 — Penjualan Harian (Tahap 12)
+let chartRevenueTren = null; // grafik tren Net Revenue harian
 
 /* ============================================================
  * LAPISAN API
@@ -734,7 +813,7 @@ function handleLogout() {
   // Semua cache dikosongkan supaya data user sebelumnya tidak terbawa
   // kalau ada orang lain login di komputer yang sama.
   authToken = null; currentUser = null; page = "p1";
-  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null;
+  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null; revenueCache = null;
   document.getElementById("dashboardScreen").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("loginEmail").value = "";
@@ -884,6 +963,7 @@ async function loadVolume() {
 const PAGES = [
   { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); else loadRingkasan(); } },
   { id: "p2", label: "Piutang & Hutang",    panel: "page2Panel",  periode: "Posisi per tanggal berjalan (snapshot)", onOpen: loadArap },
+  { id: "p6", label: "Penjualan Harian",    panel: "page6Panel",  periode: "Memuat…", onOpen: loadRevenueHarian },
   { id: "p5", label: "Arus Kas Harian",     panel: "page5Panel",  periode: "Memuat…", onOpen: loadArusKasHarian },
   { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
   { id: "p4", label: "Kelola User",         panel: "page4Panel",  periode: "Pengaturan akun pengguna", adminSaja: true, onOpen: loadUsers },
@@ -2046,6 +2126,240 @@ function renderRincianChart(inflow, outflow) {
   }
   chartRincianInflow = bangun("ak5ChartRincianInflow", chartRincianInflow, inflow, "#0d9488");
   chartRincianOutflow = bangun("ak5ChartRincianOutflow", chartRincianOutflow, outflow, "#dc2626");
+}
+
+/* ============================================================
+ * HALAMAN 6 (p6): PENJUALAN HARIAN (REVENUE)
+ * Membaca snapshot Tahap 10 lewat action "getRevenueHarianDashboard" —
+ * TIDAK PERNAH memanggil mesin hitung mentah (PRD §8 lapis 1). Pola
+ * sama seperti Halaman 5 (Arus Kas Harian, Tahap 11).
+ * ============================================================ */
+async function loadRevenueHarian() {
+  if (revenueCache) { renderRevenueHarian(revenueCache); return; }
+  const j = await apiPost({ action: "getRevenueHarianDashboard" });
+  if (!j.ok) { alert(j.error || "Gagal memuat data penjualan harian."); return; }
+  revenueCache = j;
+  renderRevenueHarian(j);
+}
+
+/** 'YYYY-MM-DD' -> label bulan pendek Indonesia + 2 digit tahun, mis. "Jul-26". Dipakai untuk header kolom MTD/Bulan Lalu (modul-harian §6). */
+function fmtBulanLabelDariTanggal(iso) {
+  const BULAN = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  const p = String(iso).split("-").map(Number);
+  if (p.length < 2 || !p[1]) return "";
+  return BULAN[p[1] - 1] + "-" + String(p[0]).slice(2);
+}
+/** Bulan sebelumnya dari tanggal 'YYYY-MM-DD' (untuk label kolom "Bulan Lalu Penuh"). */
+function fmtBulanLaluLabelDariTanggal(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length < 2 || !p[1]) return "";
+  let y = p[0], m = p[1] - 1;
+  if (m < 1) { m = 12; y -= 1; }
+  return fmtBulanLabelDariTanggal(y + "-" + (m < 10 ? "0" : "") + m + "-01");
+}
+
+function renderRevenueHarian(j) {
+  const kosong = document.getElementById("page6Kosong");
+  const isi = document.getElementById("page6Isi");
+
+  if (!j.adaData) {
+    kosong.textContent = j.pesan || "Belum ada data penjualan harian.";
+    kosong.classList.remove("hidden");
+    isi.classList.add("hidden");
+    return;
+  }
+  kosong.classList.add("hidden");
+  isi.classList.remove("hidden");
+
+  document.getElementById("periodeLabel").textContent = "Data per " + j.tanggal + " · diperbarui " + j.waktuDibuat;
+
+  // banner "belum diperbarui untuk hari ini" — warna & ambang SENGAJA
+  // sama seperti p5 (Tahap 11k), lihat catatan endpoint p6.
+  const banner = document.getElementById("rv6Banner");
+  const KELAS_BANNER = {
+    normal:    "bg-amber-50 border border-amber-200 text-amber-800",
+    perhatian: "bg-orange-50 border border-orange-300 text-orange-800",
+    kritis:    "bg-red-50 border border-red-300 text-red-800",
+  };
+  if (j.terkini || !j.labelStatus) {
+    banner.classList.add("hidden");
+  } else {
+    banner.textContent = j.labelStatus;
+    const kelasWarna = KELAS_BANNER[j.levelKeterlambatan] || KELAS_BANNER.normal;
+    banner.className = "rounded-xl px-4 py-3 mb-4 text-sm font-medium " + kelasWarna;
+  }
+
+  const p = j.ringkasan.periode;
+  document.getElementById("rv6Net").textContent = fmtRp(p.net);
+  document.getElementById("rv6NetRata").textContent = p.jumlahHari > 1
+    ? "Rata-rata/hari: Rp " + fmtRp(p.rataPerHari) + " (" + p.jumlahHari + " hari)"
+    : "";
+  document.getElementById("rv6Nota").textContent = (p.jumlahNota ?? 0).toLocaleString("id-ID");
+  document.getElementById("rv6Gross").textContent = fmtRp(p.gross);
+  document.getElementById("rv6Diskon").textContent = fmtRp(p.disc);
+
+  renderTrenRevenue(j.tren || []);
+
+  // ringkasan 3 kolom — header MTD/Bulan Lalu diberi label bulan sungguhan
+  // (modul-harian §6: "<BLN>-26 (MTD)" / "<BLNLALU>-26 (Penuh)")
+  document.getElementById("rv6ColPeriode").textContent = "Periode";
+  document.getElementById("rv6ColMtd").textContent = fmtBulanLabelDariTanggal(j.tanggal) + " (MTD)";
+  document.getElementById("rv6ColBulanLalu").textContent = fmtBulanLaluLabelDariTanggal(j.tanggal) + " (Penuh)";
+
+  const baris3 = (label, key, formatter) => {
+    const f = formatter || fmtRp;
+    return `<tr class="border-t border-slate-100">
+      <td class="py-1.5 text-slate-600">${label}</td>
+      <td class="py-1.5 text-right">${f(j.ringkasan.periode[key])}</td>
+      <td class="py-1.5 text-right">${f(j.ringkasan.mtd[key])}</td>
+      <td class="py-1.5 text-right">${f(j.ringkasan.bulanLaluPenuh[key])}</td>
+    </tr>`;
+  };
+  const fmtAngka = v => (v ?? 0).toLocaleString("id-ID");
+  document.getElementById("rv6TabelRingkasan").innerHTML =
+    baris3("Gross", "gross") +
+    baris3("Diskon", "disc") +
+    baris3("Net", "net") +
+    baris3("Jumlah Nota", "jumlahNota", fmtAngka) +
+    baris3("Jumlah Pasien (approx)", "jumlahPasienUnik", fmtAngka) +
+    baris3("Net ARA", "netARA");
+
+  const rataKet = document.getElementById("rv6RataKet");
+  if (p.jumlahHari > 1) {
+    rataKet.textContent = `Kolom "Periode" mencakup ${p.jumlahHari} hari (modul-harian §5.3: jangan bandingkan total periode multi-hari dengan total 1 hari — pakai rata-rata per hari di atas).`;
+    rataKet.classList.remove("hidden");
+  } else rataKet.classList.add("hidden");
+
+  renderDimensiRevenue(j.dimensi);
+  renderAnomaliRevenue(j.anomaliBisnis || []);
+  renderPipaDataRevenue(j);
+}
+
+/**
+ * Grafik tren Net Revenue harian — data dari beberapa snapshot terakhir
+ * (backend `_rv6BangunTren_`). Pola & ambang "minimal 2 titik" sama
+ * seperti tren Arus Kas Harian (Tahap 11o).
+ */
+function renderTrenRevenue(tren) {
+  const wrap = document.getElementById("rv6TrenWrap");
+  const kosong = document.getElementById("rv6TrenKosong");
+
+  if (!tren.length || tren.length < 2 || typeof Chart === "undefined") {
+    wrap.classList.add("hidden");
+    kosong.classList.remove("hidden");
+    kosong.textContent = !tren.length
+      ? "Belum ada data tren."
+      : tren.length < 2
+        ? `Baru ada ${tren.length} hari data snapshot — grafik akan tampil setelah datanya lebih dari 1 hari.`
+        : "Grafik tidak tersedia di browser ini.";
+    return;
+  }
+  wrap.classList.remove("hidden");
+  kosong.classList.add("hidden");
+
+  if (chartRevenueTren) chartRevenueTren.destroy();
+  chartRevenueTren = new Chart(document.getElementById("rv6ChartTren"), {
+    type: "line",
+    data: {
+      labels: tren.map(t => fmtTglPendek(t.tanggal)),
+      datasets: [{
+        label: "Net Revenue",
+        data: tren.map(t => Math.round(t.net / 1e6 * 10) / 10),
+        borderColor: "#0d9488",
+        backgroundColor: "#0d948822",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+      },
+      scales: {
+        y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } },
+      },
+    },
+  });
+}
+
+/**
+ * Render SELURUH dimensi lewat PERULANGAN — kontrak PRD §7 mengikat:
+ * "tabel dan drill-down dibuat dengan perulangan atas dimensi, bukan
+ * menulis empat tabel terpisah. Menambah dimensi = menambah satu baris
+ * konfigurasi, tampilannya muncul sendiri." Kalau backend suatu saat
+ * menambah dimensi baru (mis. Test_Harian/Dokter_Harian, PRD §7), kartu
+ * barunya otomatis muncul di sini TANPA ubah HTML/JS ini sama sekali.
+ */
+function renderDimensiRevenue(dimensi) {
+  const wrap = document.getElementById("rv6DimensiWrap");
+  if (!dimensi) { wrap.innerHTML = ""; return; }
+
+  wrap.innerHTML = Object.keys(dimensi).map(kunci => {
+    const d = dimensi[kunci];
+    const adaPasien = d.baris.length && d.baris[0].jumlahPasien !== undefined;
+    const baris = d.baris.map(b => `<tr class="border-t border-slate-100">
+        <td class="py-1.5 text-slate-600">${b.nama}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.net)}</td>
+        <td class="py-1.5 text-right">${(b.jumlahNota ?? 0).toLocaleString("id-ID")}</td>
+        ${adaPasien ? `<td class="py-1.5 text-right">${(b.jumlahPasien ?? 0).toLocaleString("id-ID")}</td>` : ""}
+        <td class="py-1.5 text-right">${fmtRp(b.netMTD)}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.netBulanLaluPenuh)}</td>
+      </tr>`).join("");
+    return `<div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+      <p class="text-sm font-medium text-slate-700 mb-2">${d.label} <span class="text-xs font-normal text-slate-400">(${d.baris.length} baris)</span></p>
+      <table class="w-full text-xs">
+        <thead><tr class="text-slate-400 border-b border-slate-100">
+          <th class="text-left font-normal pb-2">Nama</th>
+          <th class="text-right font-normal pb-2">Net (Periode)</th>
+          <th class="text-right font-normal pb-2">Jumlah Nota</th>
+          ${adaPasien ? '<th class="text-right font-normal pb-2">Jumlah Pasien</th>' : ""}
+          <th class="text-right font-normal pb-2">Net MTD</th>
+          <th class="text-right font-normal pb-2">Net Bln Lalu</th>
+        </tr></thead>
+        <tbody>${baris || `<tr><td colspan="6" class="py-3 text-center text-slate-400">Tidak ada baris.</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+}
+
+/** Anomali bisnis (modul-harian §7) — tampil untuk SEMUA peran, termasuk Direksi. */
+function renderAnomaliRevenue(daftar) {
+  const el = document.getElementById("rv6Anomali");
+  if (!daftar.length) { el.innerHTML = `<p class="text-xs text-slate-400">Tidak ada anomali terdeteksi.</p>`; return; }
+  el.innerHTML = daftar.map(a => {
+    if (a.jenis === "tidak_ada") return `<p class="text-xs text-slate-400">${a.pesan}</p>`;
+    return `<p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">• ${a.pesan}</p>`;
+  }).join("");
+}
+
+/**
+ * Temuan pipa data + diagnostik TORCH — HANYA muncul kalau backend
+ * mengirimkannya (artinya peran ini staf/admin, lihat `getRevenueHarianDashboard_`
+ * di endpoint_p6_revenue). Direksi/viewer tidak pernah menerima field ini
+ * sama sekali dari server (bukan cuma disembunyikan di tampilan — PRD §15:
+ * "Penyaringan dilakukan di server, bukan sekadar disembunyikan di tampilan").
+ */
+function renderPipaDataRevenue(j) {
+  const box = document.getElementById("rv6PipaDataBox");
+  if (j.temuanPipaData === undefined) { box.classList.add("hidden"); return; }
+
+  const ada = j.temuanPipaData && j.temuanPipaData.length;
+  box.classList.toggle("hidden", !ada && !(j.torchDitemukan && j.torchDitemukan.length));
+  if (!ada && !(j.torchDitemukan && j.torchDitemukan.length)) return;
+
+  document.getElementById("rv6PipaData").innerHTML = ada
+    ? j.temuanPipaData.map(t => `<p class="text-xs text-slate-600">• ${t}</p>`).join("")
+    : `<p class="text-xs text-slate-400">Tidak ada temuan pipa data.</p>`;
+
+  const torchEl = document.getElementById("rv6TorchKet");
+  if (j.torchDitemukan && j.torchDitemukan.length) {
+    torchEl.textContent = `Kolom TORCH ditemukan otomatis (${j.torchDitemukan.length}): ${j.torchDitemukan.join(", ")}. ` +
+      (j.waktuEksekusiMs !== undefined ? `Waktu eksekusi snapshot terakhir: ${j.waktuEksekusiMs} ms.` : "");
+  } else torchEl.textContent = "";
 }
 
 /* ============================================================
