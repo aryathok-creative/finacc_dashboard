@@ -28,8 +28,23 @@
       </div>
       <div>
         <label class="text-xs font-medium text-slate-600">Password</label>
-        <input id="loginPassword" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()"
-          class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+        <div class="relative mt-1">
+          <input id="loginPassword" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()"
+            class="w-full border border-slate-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+          <button type="button" onclick="toggleLoginPasswordVisibility()" id="loginPasswordToggle" aria-label="Tampilkan password"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <svg id="loginPasswordIconTertutup" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68" />
+              <path d="M6.61 6.61A13.53 13.53 0 0 0 1 12s4 8 11 8a9.26 9.26 0 0 0 5.39-1.61" />
+              <path d="M2 2l20 20" />
+              <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+            </svg>
+            <svg id="loginPasswordIconTerbuka" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
       </div>
       <p id="loginError" class="text-xs text-red-600 hidden"></p>
       <button onclick="handleLogin()"
@@ -253,24 +268,37 @@
         <span id="ak5Checking" class="text-xs px-3 py-1 rounded-full"></span>
       </div>
 
-      <!-- KPI cards -->
+      <!-- KPI cards — diwarnai per makna (Tahap 11o, redesain visual):
+           hijau=masuk, merah=keluar, biru/merah dinamis=bersih, ungu=total saldo -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Cash Inflow</p>
-          <p id="ak5Inflow" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
+          <p class="text-xs text-teal-700">Cash Inflow</p>
+          <p id="ak5Inflow" class="text-xl font-semibold text-teal-800 mt-1">—</p>
         </div>
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Cash Outflow</p>
-          <p id="ak5Outflow" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="bg-red-50 border border-red-100 rounded-xl p-4">
+          <p class="text-xs text-red-700">Cash Outflow</p>
+          <p id="ak5Outflow" class="text-xl font-semibold text-red-800 mt-1">—</p>
         </div>
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Kenaikan/(Penurunan) Bersih</p>
-          <p id="ak5Bersih" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div id="ak5BersihCard" class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p id="ak5BersihLabel" class="text-xs text-blue-700">Kenaikan/(Penurunan) Bersih</p>
+          <p id="ak5Bersih" class="text-xl font-semibold text-blue-800 mt-1">—</p>
         </div>
-        <div class="bg-white border border-slate-200 rounded-xl p-4">
-          <p class="text-xs text-slate-500">Total Saldo Akhir (bulan ini)</p>
-          <p id="ak5TotalSaldo" class="text-xl font-semibold text-slate-800 mt-1">—</p>
+        <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <p class="text-xs text-purple-700">Total Saldo Akhir (bulan ini)</p>
+          <p id="ak5TotalSaldo" class="text-xl font-semibold text-purple-800 mt-1">—</p>
         </div>
+      </div>
+
+      <!-- grafik tren total saldo akhir (Tahap 11o) — data nyata dari
+           beberapa snapshot terakhir, BUKAN ilustrasi. Kalau baru ada
+           1 titik (snapshot belum berjalan lama), tampilkan pesan,
+           bukan grafik yang terlihat kosong/aneh -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-3">Tren Total Saldo Akhir</p>
+        <div id="ak5TrenWrap" class="relative" style="height:220px">
+          <canvas id="ak5ChartTren"></canvas>
+        </div>
+        <p id="ak5TrenKosong" class="hidden text-xs text-slate-400 text-center py-8"></p>
       </div>
 
       <!-- tabel arus kas 3 kolom -->
@@ -324,6 +352,30 @@
           </tr></thead>
           <tbody id="ak5TabelPrk"></tbody>
         </table>
+      </div>
+
+      <!-- grafik rincian inflow / outflow (Tahap 11o) — bar horizontal per
+           pos, dengan pemilih periode yang mengendalikan KEDUA grafik -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p class="text-sm font-medium text-slate-700">Rincian Cash Inflow &amp; Cash Outflow</p>
+          <div id="ak5RincianPeriode" class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
+            <button data-periode="hariIni" onclick="ubahPeriodeRincian('hariIni')" class="px-3 py-1.5">Hari Ini</button>
+            <button data-periode="mtd" onclick="ubahPeriodeRincian('mtd')" class="px-3 py-1.5 border-l border-slate-200">MTD</button>
+            <button data-periode="bulanLalu" onclick="ubahPeriodeRincian('bulanLalu')" class="px-3 py-1.5 border-l border-slate-200">Bln Lalu</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs text-slate-500 mb-2">Cash Inflow</p>
+            <div class="relative" style="height:180px"><canvas id="ak5ChartRincianInflow"></canvas></div>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-2">Cash Outflow</p>
+            <div class="relative" style="height:220px"><canvas id="ak5ChartRincianOutflow"></canvas></div>
+          </div>
+        </div>
+        <p id="ak5RincianKosong" class="hidden text-xs text-slate-400 text-center py-6"></p>
       </div>
 
       <!-- rincian inflow / outflow -->
@@ -450,12 +502,49 @@
     <select id="tuRole" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4">
       <option value="staff">staff — input & publikasi data</option>
       <option value="direksi">direksi — lihat saja</option>
+      <option value="viewer">viewer — lihat saja, tanpa publikasi (mis. marketing manager)</option>
       <option value="admin">admin — kelola user</option>
     </select>
+
+    <label class="block text-xs text-slate-500 mb-1">Akses tab</label>
+    <div class="flex items-center gap-4 mb-2 text-xs text-slate-600">
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="tuAksesMode" value="semua" checked onchange="tuToggleAksesBox()"> Semua tab sesuai peran (default)
+      </label>
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="tuAksesMode" value="tertentu" onchange="tuToggleAksesBox()"> Hanya tab tertentu
+      </label>
+    </div>
+    <div id="tuAksesBox" class="hidden grid grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 mb-4 text-xs text-slate-600"></div>
+
     <p id="tuError" class="text-xs text-red-600 mb-3 hidden"></p>
     <div class="flex gap-2">
       <button onclick="tutupTambahUser()" class="flex-1 text-sm border border-slate-200 rounded-lg py-2 text-slate-600 hover:bg-slate-50">Batal</button>
       <button id="tuBtn" onclick="simpanUserBaru()" class="flex-1 text-sm bg-teal-600 text-white rounded-lg py-2 font-medium hover:bg-teal-700">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: ATUR AKSES TAB (user yang sudah ada) ============ -->
+<div id="modalAksesUser" class="hidden fixed inset-0 bg-black/40 items-center justify-center px-4 z-50">
+  <div class="bg-white rounded-xl w-full max-w-sm p-5">
+    <h3 class="text-sm font-semibold text-slate-800 mb-1">Atur Akses Tab</h3>
+    <p id="auUntuk" class="text-xs text-slate-500 mb-4"></p>
+
+    <div class="flex items-center gap-4 mb-2 text-xs text-slate-600">
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="auAksesMode" value="semua" onchange="auToggleAksesBox()"> Semua tab sesuai peran (default)
+      </label>
+      <label class="flex items-center gap-1.5">
+        <input type="radio" name="auAksesMode" value="tertentu" onchange="auToggleAksesBox()"> Hanya tab tertentu
+      </label>
+    </div>
+    <div id="auAksesBox" class="hidden grid grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 mb-4 text-xs text-slate-600"></div>
+
+    <p id="auError" class="text-xs text-red-600 mb-3 hidden"></p>
+    <div class="flex gap-2">
+      <button onclick="tutupAksesUser()" class="flex-1 text-sm border border-slate-200 rounded-lg py-2 text-slate-600 hover:bg-slate-50">Batal</button>
+      <button id="auBtn" onclick="simpanAksesUser()" class="flex-1 text-sm bg-teal-600 text-white rounded-lg py-2 font-medium hover:bg-teal-700">Simpan</button>
     </div>
   </div>
 </div>
@@ -513,6 +602,9 @@ let sarmutCache = null;      // data halaman 3 (di-fetch saat pertama dibuka)
 let sarmutTapis = "semua";   // semua | merah | hijau | abu
 let chartSarmut = null;      // grafik tren di panel detail
 let arusKasCache = null;     // data halaman 5 — Arus Kas Harian (di-fetch saat pertama dibuka)
+let chartArusKasTren = null; // grafik tren Total Saldo Akhir (Tahap 11o)
+let chartRincianInflow = null, chartRincianOutflow = null; // grafik rincian pos (Tahap 11o)
+let rincianPeriodeAktif = "hariIni"; // hariIni | mtd | bulanLalu — dipakai KEDUA grafik rincian
 
 /* ============================================================
  * LAPISAN API
@@ -555,6 +647,25 @@ function chip(label, pct) {
 /* ============================================================
  * LOGIN / LOGOUT (pola secure-auth-appsscript)
  * ============================================================ */
+/**
+ * Ikon mata di textbox password login (Tahap 11o, item 3). Klik untuk
+ * lihat/sembunyikan isian — cuma menukar atribut `type` bawaan HTML,
+ * TIDAK menyentuh cara password dikirim/disimpan (tetap lewat HTTPS ke
+ * `checkLogin`, tidak pernah disimpan di sisi browser).
+ */
+function toggleLoginPasswordVisibility() {
+  const input = document.getElementById("loginPassword");
+  const tertutup = document.getElementById("loginPasswordIconTertutup");
+  const terbuka = document.getElementById("loginPasswordIconTerbuka");
+  const btn = document.getElementById("loginPasswordToggle");
+  const sedangTerlihat = input.type === "text";
+
+  input.type = sedangTerlihat ? "password" : "text";
+  tertutup.classList.toggle("hidden", sedangTerlihat);
+  terbuka.classList.toggle("hidden", !sedangTerlihat);
+  btn.setAttribute("aria-label", sedangTerlihat ? "Tampilkan password" : "Sembunyikan password");
+}
+
 async function handleLogin() {
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
@@ -597,6 +708,9 @@ function handleLogout() {
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("loginEmail").value = "";
   document.getElementById("loginPassword").value = "";
+  // Kembalikan ikon mata ke posisi tertutup — orang lain yang pakai
+  // komputer yang sama setelah logout tidak mewarisi isian terlihat.
+  if (document.getElementById("loginPassword").type === "text") toggleLoginPasswordVisibility();
 }
 
 /* ============================================================
@@ -611,7 +725,55 @@ async function showDashboard() {
   document.getElementById("statusPanel").classList.toggle("hidden", !isStaff);
   if (isStaff) await refreshStatusPanel();
 
-  await loadRingkasan();
+  await bukaTampilanUtama();
+}
+
+/**
+ * Membangun navigasi & membuka halaman pertama yang boleh dilihat user ini.
+ * Ditambahkan 2026-08-01 (Tahap 11o, bug dilaporkan Doel): DULU logika ini
+ * menumpang di respons `getRingkasanEksekutif` (p1) — kalau p1 gagal, nav
+ * TIDAK PERNAH dibangun dan seluruh dashboard macet. Itu selalu aman waktu
+ * SEMUA user boleh lihat p1, tapi sejak akses tab bisa dibatasi per user,
+ * p1 sendiri bisa saja tidak diizinkan. Sekarang dipisah: gerbang "data
+ * belum dipublikasikan" (khusus Direksi) dicek lewat `getStatus` (aksi
+ * yang tidak pernah dibatasi per tab), baru sesudahnya navigasi dibangun
+ * dan halaman pertama yang BENAR-BENAR boleh dia lihat yang dibuka —
+ * bukan p1 yang di-hardcode.
+ */
+// Peran yang MURNI lihat saja, tunduk gerbang "data belum dipublikasikan"
+// — cermin dari `_perananLihatSaja_` di Code.gs. "viewer" ditambahkan
+// 2026-08-01 supaya user seperti marketing manager bisa didaftarkan
+// tanpa ikut dapat tombol publikasi milik role "staff".
+const PERAN_LIHAT_SAJA = ["direksi", "viewer"];
+
+async function bukaTampilanUtama() {
+  const role = String(currentUser.role || "").toLowerCase();
+
+  if (PERAN_LIHAT_SAJA.includes(role)) {
+    const st = await apiPost({ action: "getStatus" });
+    if (!st.ok || !st.dataSiap) {
+      document.getElementById("periodeLabel").textContent = st.periode ? "Periode: " + st.periode : "—";
+      document.getElementById("notReadyPanel").classList.remove("hidden");
+      PAGES.forEach(p => { const el = document.getElementById(p.panel); if (el) el.classList.add("hidden"); });
+      document.getElementById("pageNav").classList.add("hidden");
+      return;
+    }
+  }
+  document.getElementById("notReadyPanel").classList.add("hidden");
+
+  const halamanBoleh = pagesTampil();
+  if (!halamanBoleh.length) {
+    // Belum pernah terjadi lewat alur pendaftaran normal (checkbox akses
+    // selalu minimal 1), tapi dijaga kalau admin sampai menyisakan nol tab.
+    document.getElementById("pageNav").classList.add("hidden");
+    alert("Akun ini belum memiliki akses ke tab mana pun. Hubungi admin untuk mengatur akses.");
+    return;
+  }
+
+  document.getElementById("pageNav").classList.remove("hidden");
+  buildPageNav();
+  page = halamanBoleh.some(p => p.id === page) ? page : halamanBoleh[0].id;
+  switchPage(page);
 }
 
 async function refreshStatusPanel() {
@@ -633,31 +795,33 @@ async function handleToggleStatus() {
   const j = await apiPost({ action: "setStatus", dataSiap: next, periode: lastPeriode });
   if (!j.ok) return alert(j.error || "Gagal mengubah status.");
   await refreshStatusPanel();
-  await loadRingkasan();
+  // Segarkan cache Ringkasan Eksekutif HANYA kalau staf/admin ini memang
+  // diizinkan lihat tab itu — kalau tidak, memanggilnya percuma memicu
+  // pesan "tidak memiliki akses" padahal cuma mau toggle status publikasi.
+  if (pagesTampil().some(p => p.id === "p1")) await loadRingkasan();
 }
 
+/**
+ * Loader khusus halaman p1 (Ringkasan Eksekutif) — pola sama seperti
+ * `loadArap`/`loadSarmut`/`loadArusKasHarian`: dipanggil lewat `onOpen`
+ * saat tab ini pertama kali dibuka, BUKAN lagi dari bootstrap dashboard
+ * (lihat `bukaTampilanUtama`). Gerbang "data belum dipublikasikan" untuk
+ * Direksi sudah ditangani lebih awal di `bukaTampilanUtama` lewat
+ * `getStatus`, jadi kalau fungsi ini sempat terpanggil, harusnya `dataSiap`
+ * selalu benar untuk Direksi — pengecekan di bawah tetap dijaga sebagai
+ * jaring pengaman kalau ada kondisi balapan (race condition).
+ */
 async function loadRingkasan() {
   const j = await apiPost({ action: "getRingkasanEksekutif" });
   if (!j.ok) { alert(j.error || "Gagal memuat data."); return; }
-
-  if (!j.dataSiap) {
-    document.getElementById("periodeLabel").textContent = j.periode ? "Periode: " + j.periode : "—";
-    document.getElementById("notReadyPanel").classList.remove("hidden");
-    PAGES.forEach(p => { const el = document.getElementById(p.panel); if (el) el.classList.add("hidden"); });
-    document.getElementById("pageNav").classList.add("hidden");
-    return;
-  }
-  document.getElementById("notReadyPanel").classList.add("hidden");
-  document.getElementById("pageNav").classList.remove("hidden");
-  buildPageNav();
+  if (!j.dataSiap) return;
 
   series = j.bulanan || [];
   lastPeriode = series.length ? series[series.length - 1].bulan : (j.periode || "");
   mode = "bulan";
   sel = periodList().length - 1;
   await loadVolume(); // data volume segmen (sekali, lalu cache)
-  switchPage(page); // pertahankan halaman aktif (default p1)
-  if (page === "p1") render();
+  render();
 }
 
 async function loadVolume() {
@@ -687,7 +851,7 @@ async function loadVolume() {
  * entrinya SEBELUM p5 di sini (bukan di akhir array), supaya urutan tampil
  * langsung benar tanpa perlu field urutan terpisah. */
 const PAGES = [
-  { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); } },
+  { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); else loadRingkasan(); } },
   { id: "p2", label: "Piutang & Hutang",    panel: "page2Panel",  periode: "Posisi per tanggal berjalan (snapshot)", onOpen: loadArap },
   { id: "p5", label: "Arus Kas Harian",     panel: "page5Panel",  periode: "Memuat…", onOpen: loadArusKasHarian },
   { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
@@ -705,9 +869,22 @@ const PAGES = [
  */
 function pagesTampil() {
   const admin = String((currentUser && currentUser.role) || "").toLowerCase().includes("admin");
-  return PAGES.filter(p => !p.adminSaja || admin)
-    .sort((a, b) => (a.id === "p4" ? 1 : 0) - (b.id === "p4" ? 1 : 0));
+  // Akses tab per user (Tahap 12) — lapisan TAMBAHAN di atas peran, bukan
+  // pengganti. Kosong = tidak dibatasi (default, kompatibel dengan user
+  // lama). Admin tidak pernah dibatasi lapisan ini, sama seperti di server
+  // (lihat _halamanDiizinkan_ di Code.gs) — supaya tidak bisa mengunci diri
+  // sendiri. Gerbang SUNGGUHAN tetap di server; ini cuma kosmetik.
+  const daftarHalaman = (currentUser && currentUser.halamanDiizinkan) || [];
+  return PAGES.filter(p => {
+    if (p.adminSaja) return admin;
+    if (admin || !daftarHalaman.length) return true;
+    return daftarHalaman.includes(p.id);
+  }).sort((a, b) => (a.id === "p4" ? 1 : 0) - (b.id === "p4" ? 1 : 0));
 }
+
+// Daftar tab yang bisa dibatasi lewat "Akses tab" (Tahap 12). "Kelola User"
+// (p4) sengaja tidak masuk sini — itu tetap murni lewat adminSaja.
+const AKSES_HALAMAN_OPSI = PAGES.filter(p => !p.adminSaja).map(p => ({ id: p.id, label: p.label }));
 
 function buildPageNav() {
   const wrap = document.getElementById("pageNavBtns");
@@ -723,9 +900,18 @@ function buildPageNav() {
 }
 
 function switchPage(p) {
-  // Kalau halaman tidak boleh dilihat (mis. staf mengetik p4 lewat konsol),
-  // lempar balik ke halaman pertama. Gerbang sebenarnya tetap di server.
-  if (!pagesTampil().some(x => x.id === p)) p = "p1";
+  // Kalau halaman tidak boleh dilihat (mis. staf mengetik p3 lewat konsol,
+  // atau sisa state lama), lempar balik ke halaman PERTAMA YANG BOLEH DIA
+  // LIHAT — dulu ini hardcode ke "p1", tapi itu salah kalau p1 sendiri
+  // sedang dibatasi untuk user ini (Tahap 11o, dilaporkan Doel 1 Agu 2026).
+  // Gerbang sebenarnya tetap di server; ini cuma supaya pesannya jelas.
+  const halamanBoleh = pagesTampil();
+  if (!halamanBoleh.length) return; // ditangani di bukaTampilanUtama()
+  if (!halamanBoleh.some(x => x.id === p)) {
+    const namaTujuan = (PAGES.find(x => x.id === p) || {}).label || "ini";
+    alert(`Anda tidak memiliki akses ke tab "${namaTujuan}". Hubungi admin kalau ini seharusnya diizinkan.`);
+    p = halamanBoleh[0].id;
+  }
   page = p;
   const aktif = PAGES.find(x => x.id === p) || PAGES[0];
 
@@ -1069,15 +1255,28 @@ function renderUsers(j) {
     if (u.terkunci) status += `<br><span class="text-amber-700">terkunci — ${u.gagalLogin}x gagal login</span>`;
     else if (u.mustChange) status += `<br><span class="text-slate-400">belum ganti password awal</span>`;
 
+    // Badge akses tab — admin selalu dianggap "semua" (server juga begitu),
+    // jadi tidak perlu ditampilkan/diatur untuk baris admin.
+    const admin = String(u.role || "").toLowerCase().includes("admin");
+    const daftar = u.halamanDiizinkan || [];
+    let aksesTeks;
+    if (admin) aksesTeks = `<span class="text-slate-400">Semua tab</span>`;
+    else if (!daftar.length) aksesTeks = `<span class="text-slate-400">Semua tab</span>`;
+    else aksesTeks = `<span class="text-amber-700">${daftar.map(id => (AKSES_HALAMAN_OPSI.find(o => o.id === id) || {}).label || id).join(", ")}</span>`;
+
     tb.insertAdjacentHTML("beforeend", `
       <tr class="border-b border-slate-50">
         <td class="py-2.5 pr-2 text-slate-700">${u.nama || "—"}${sayaSendiri ? ' <span class="text-slate-400">(Anda)</span>' : ""}</td>
         <td class="py-2.5 px-2 text-slate-500">${u.email}</td>
         <td class="py-2.5 px-2 text-slate-500">${u.role || "—"}</td>
-        <td class="py-2.5 px-2 leading-relaxed">${status}</td>
+        <td class="py-2.5 px-2 leading-relaxed">${status}<br>${aksesTeks}</td>
         <td class="py-2.5 pl-2 text-right whitespace-nowrap">
           <button onclick="resetPasswordUser('${u.email}','${(u.nama || "").replace(/'/g, "")}')"
             class="text-teal-700 hover:underline">Reset password</button>
+          ${admin ? "" : `
+            <span class="text-slate-200 mx-1">|</span>
+            <button onclick='bukaAksesUser(${JSON.stringify(u.email)}, ${JSON.stringify(u.nama || "")}, ${JSON.stringify(daftar)})'
+              class="text-teal-700 hover:underline">Atur akses</button>`}
           ${sayaSendiri ? "" : `
             <span class="text-slate-200 mx-1">|</span>
             <button onclick="ubahAktif('${u.email}', ${!u.aktif})"
@@ -1124,10 +1323,29 @@ async function ubahAktif(email, jadiAktif) {
   loadUsers();
 }
 
+/* ---------------- akses tab: kotak checkbox bersama ---------------- */
+function _isiKotakAkses_(boxId, terpilih) {
+  const box = document.getElementById(boxId);
+  box.innerHTML = AKSES_HALAMAN_OPSI.map(o => `
+    <label class="flex items-center gap-1.5">
+      <input type="checkbox" value="${o.id}" ${terpilih.includes(o.id) ? "checked" : ""}> ${o.label}
+    </label>`).join("");
+}
+function _bacaKotakAkses_(boxId) {
+  return Array.from(document.querySelectorAll(`#${boxId} input[type=checkbox]:checked`)).map(el => el.value);
+}
+
 /* ---------------- tambah user ---------------- */
+function tuToggleAksesBox() {
+  const tertentu = document.querySelector('input[name="tuAksesMode"]:checked').value === "tertentu";
+  document.getElementById("tuAksesBox").classList.toggle("hidden", !tertentu);
+}
 function bukaTambahUser() {
   ["tuNama", "tuEmail"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("tuRole").value = "staff";
+  document.querySelector('input[name="tuAksesMode"][value="semua"]').checked = true;
+  _isiKotakAkses_("tuAksesBox", []);
+  tuToggleAksesBox();
   document.getElementById("tuError").classList.add("hidden");
   const m = document.getElementById("modalTambahUser");
   m.classList.remove("hidden"); m.classList.add("flex");
@@ -1140,17 +1358,75 @@ async function simpanUserBaru() {
   const nama = document.getElementById("tuNama").value.trim();
   const email = document.getElementById("tuEmail").value.trim();
   const role = document.getElementById("tuRole").value;
+  const mode = document.querySelector('input[name="tuAksesMode"]:checked').value;
   const err = document.getElementById("tuError");
   const btn = document.getElementById("tuBtn");
 
+  let halamanDiizinkan = [];
+  if (mode === "tertentu") {
+    halamanDiizinkan = _bacaKotakAkses_("tuAksesBox");
+    if (!halamanDiizinkan.length) {
+      err.textContent = "Pilih minimal satu tab, atau gunakan \"Semua tab sesuai peran\".";
+      err.classList.remove("hidden");
+      return;
+    }
+  }
+
   err.classList.add("hidden");
   btn.disabled = true; btn.textContent = "Menyimpan…";
-  const j = await apiPost({ action: "tambahUser", nama, email, role });
+  const j = await apiPost({ action: "tambahUser", nama, email, role, halamanDiizinkan });
   btn.disabled = false; btn.textContent = "Simpan";
 
   if (!j.ok) { err.textContent = j.error || "Gagal menambah user."; err.classList.remove("hidden"); return; }
   tutupTambahUser();
   tampilkanTemp(j.tempPassword, `Untuk ${nama} (${j.email})`);
+  loadUsers();
+}
+
+/* ---------------- atur akses tab (user yang sudah ada) ---------------- */
+let auEmailAktif = "";
+function auToggleAksesBox() {
+  const tertentu = document.querySelector('input[name="auAksesMode"]:checked').value === "tertentu";
+  document.getElementById("auAksesBox").classList.toggle("hidden", !tertentu);
+}
+function bukaAksesUser(email, nama, halamanDiizinkan) {
+  auEmailAktif = email;
+  document.getElementById("auUntuk").textContent = `Untuk ${nama || email} (${email})`;
+  const dibatasi = !!(halamanDiizinkan && halamanDiizinkan.length);
+  document.querySelector(`input[name="auAksesMode"][value="${dibatasi ? "tertentu" : "semua"}"]`).checked = true;
+  _isiKotakAkses_("auAksesBox", halamanDiizinkan || []);
+  auToggleAksesBox();
+  document.getElementById("auError").classList.add("hidden");
+  const m = document.getElementById("modalAksesUser");
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+function tutupAksesUser() {
+  const m = document.getElementById("modalAksesUser");
+  m.classList.add("hidden"); m.classList.remove("flex");
+  auEmailAktif = "";
+}
+async function simpanAksesUser() {
+  const mode = document.querySelector('input[name="auAksesMode"]:checked').value;
+  const err = document.getElementById("auError");
+  const btn = document.getElementById("auBtn");
+
+  let halamanDiizinkan = [];
+  if (mode === "tertentu") {
+    halamanDiizinkan = _bacaKotakAkses_("auAksesBox");
+    if (!halamanDiizinkan.length) {
+      err.textContent = "Pilih minimal satu tab, atau gunakan \"Semua tab sesuai peran\".";
+      err.classList.remove("hidden");
+      return;
+    }
+  }
+
+  err.classList.add("hidden");
+  btn.disabled = true; btn.textContent = "Menyimpan…";
+  const j = await apiPost({ action: "setHalamanDiizinkan", emailTarget: auEmailAktif, halamanDiizinkan });
+  btn.disabled = false; btn.textContent = "Simpan";
+
+  if (!j.ok) { err.textContent = j.error || "Gagal mengubah akses."; err.classList.remove("hidden"); return; }
+  tutupAksesUser();
   loadUsers();
 }
 
@@ -1548,10 +1824,20 @@ function renderArusKasHarian(j) {
   document.getElementById("ak5Inflow").textContent = fmtRp(j.arusKas.cashInflow.hariIni);
   document.getElementById("ak5Outflow").textContent = fmtRp(j.arusKas.cashOutflow.hariIni);
   const bersih = j.arusKas.kenaikanBersih.hariIni;
+  const negatif = bersih !== null && bersih < 0;
+  const bersihCard = document.getElementById("ak5BersihCard");
+  const bersihLabel = document.getElementById("ak5BersihLabel");
   const bersihEl = document.getElementById("ak5Bersih");
   bersihEl.textContent = fmtRp(bersih);
-  bersihEl.className = "text-xl font-semibold mt-1 " + (bersih !== null && bersih < 0 ? "text-red-600" : "text-slate-800");
+  // Kartu ini dinamis: biru kalau naik, merah kalau turun — bukan cuma teksnya
+  // yang berubah warna (dulu), supaya sekali lihat langsung kebaca dari jauh.
+  bersihCard.className = "rounded-xl p-4 border " + (negatif ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100");
+  bersihLabel.className = "text-xs " + (negatif ? "text-red-700" : "text-blue-700");
+  bersihEl.className = "text-xl font-semibold mt-1 " + (negatif ? "text-red-800" : "text-blue-800");
   document.getElementById("ak5TotalSaldo").textContent = fmtRp(j.saldoBank.totalAkhir.bulanIni);
+
+  renderTrenArusKas(j.tren || []);
+  renderRincianChart(j.inflow, j.outflow);
 
   // tabel arus kas — 3 kolom (Hari Ini / s.d Bulan Ini / Bulan Lalu)
   const baris3 = (label, o) => `<tr class="border-t border-slate-100">
@@ -1597,6 +1883,138 @@ function renderArusKasHarian(j) {
   }
   tabelRincian("ak5TabelInflow", j.inflow);
   tabelRincian("ak5TabelOutflow", j.outflow);
+}
+
+/**
+ * Grafik tren Total Saldo Akhir (Tahap 11o, redesain visual) — data NYATA
+ * dari `_ak5BangunTren_` di backend (beberapa snapshot terakhir), bukan
+ * ilustrasi. Kalau baru ada <2 titik (snapshot baru mulai berjalan),
+ * tampilkan pesan yang jujur alih-alih grafik yang terlihat kosong/aneh.
+ */
+function fmtTglPendek(iso) {
+  const BULAN = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || !p[1]) return String(iso);
+  return p[2] + " " + BULAN[p[1] - 1];
+}
+function renderTrenArusKas(tren) {
+  const wrap = document.getElementById("ak5TrenWrap");
+  const kosong = document.getElementById("ak5TrenKosong");
+
+  if (!tren.length || tren.length < 2 || typeof Chart === "undefined") {
+    wrap.classList.add("hidden");
+    kosong.classList.remove("hidden");
+    kosong.textContent = !tren.length
+      ? "Belum ada data tren."
+      : tren.length < 2
+        ? `Baru ada ${tren.length} hari data snapshot — grafik akan tampil setelah datanya lebih dari 1 hari.`
+        : "Grafik tidak tersedia di browser ini.";
+    return;
+  }
+  wrap.classList.remove("hidden");
+  kosong.classList.add("hidden");
+
+  if (chartArusKasTren) chartArusKasTren.destroy();
+  chartArusKasTren = new Chart(document.getElementById("ak5ChartTren"), {
+    type: "line",
+    data: {
+      labels: tren.map(t => fmtTglPendek(t.tanggal)),
+      datasets: [{
+        label: "Total Saldo Akhir",
+        data: tren.map(t => Math.round(t.totalSaldoAkhir / 1e6 * 10) / 10),
+        borderColor: "#7c3aed",
+        backgroundColor: "#7c3aed22",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+      },
+      scales: {
+        y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } },
+      },
+    },
+  });
+}
+
+/**
+ * Grafik rincian Cash Inflow & Cash Outflow (Tahap 11o) — bar horizontal
+ * per pos, SATU pemilih periode mengendalikan kedua grafik sekaligus
+ * (disepakati lewat mockup: Opsi A bar horizontal, karena outflow punya
+ * 8 pos berlabel panjang — donut jadi terlalu banyak potongan kecil).
+ * Datanya SUDAH ada di respons `getArusKasHarianDashboard` (`inflow`/
+ * `outflow`, masing-masing `hariIni`/`mtd`/`bulanLalu` per pos) — tidak
+ * perlu panggilan baru ke server saat ganti periode, cukup gambar ulang
+ * dari cache yang sama.
+ */
+function ubahPeriodeRincian(periode) {
+  rincianPeriodeAktif = periode;
+  ubahPeriodeRincianTombolAktif();
+  if (arusKasCache) renderRincianChart(arusKasCache.inflow, arusKasCache.outflow);
+}
+function ubahPeriodeRincianTombolAktif() {
+  document.querySelectorAll("#ak5RincianPeriode button").forEach((b, i) => {
+    if (i > 0) b.dataset.border = "1"; // border kiri antar tombol, sekali ditandai lalu dipakai ulang
+    b.className = "px-3 py-1.5" + (b.dataset.border ? " border-l border-slate-200" : "") +
+      (b.dataset.periode === rincianPeriodeAktif ? " bg-teal-600 text-white font-medium" : " text-slate-600 hover:bg-slate-50");
+  });
+}
+
+function renderRincianChart(inflow, outflow) {
+  ubahPeriodeRincianTombolAktif();
+
+  const wrap = [document.getElementById("ak5ChartRincianInflow").closest(".relative"), document.getElementById("ak5ChartRincianOutflow").closest(".relative")];
+  const kosong = document.getElementById("ak5RincianKosong");
+  const adaInflow = inflow && inflow.rincian && inflow.rincian.length;
+  const adaOutflow = outflow && outflow.rincian && outflow.rincian.length;
+
+  if (!adaInflow && !adaOutflow) {
+    wrap.forEach(w => w.classList.add("hidden"));
+    kosong.textContent = "Belum ada rincian untuk ditampilkan.";
+    kosong.classList.remove("hidden");
+    return;
+  }
+  wrap.forEach(w => w.classList.remove("hidden"));
+  kosong.classList.add("hidden");
+
+  function bangun(elId, chartLama, data, warna) {
+    if (chartLama) chartLama.destroy();
+    if (!data || !data.rincian || !data.rincian.length) return null;
+    return new Chart(document.getElementById(elId), {
+      type: "bar",
+      data: {
+        labels: data.rincian.map(r => r.label),
+        // Nilai outflow di data aslinya NEGATIF (uang keluar) — kalau dipakai
+        // apa adanya batangnya melebar ke kiri dan sumbunya jadi minus semua,
+        // sedangkan inflow tetap positif. Dipakai NILAI MUTLAK di sini supaya
+        // arah batang konsisten (selalu ke kanan) di kedua grafik — warna
+        // (teal/merah) dan judul kartu sudah cukup menandakan arahnya, tidak
+        // perlu tanda minus ikut membingungkan sumbu.
+        datasets: [{ data: data.rincian.map(r => Math.abs(r[rincianPeriodeAktif] || 0)), backgroundColor: warna }],
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => fmtRp(c.parsed.x) } },
+        },
+        scales: {
+          x: { ticks: { callback: v => v.toLocaleString("id-ID") } },
+          y: { ticks: { font: { size: 10 } } },
+        },
+      },
+    });
+  }
+  chartRincianInflow = bangun("ak5ChartRincianInflow", chartRincianInflow, inflow, "#0d9488");
+  chartRincianOutflow = bangun("ak5ChartRincianOutflow", chartRincianOutflow, outflow, "#dc2626");
 }
 
 /* ============================================================
