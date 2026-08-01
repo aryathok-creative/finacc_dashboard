@@ -2348,11 +2348,19 @@ function renderPipaDataRevenue(j) {
   if (j.temuanPipaData === undefined) { box.classList.add("hidden"); return; }
 
   const ada = j.temuanPipaData && j.temuanPipaData.length;
-  box.classList.toggle("hidden", !ada && !(j.torchDitemukan && j.torchDitemukan.length));
-  if (!ada && !(j.torchDitemukan && j.torchDitemukan.length)) return;
+  const adaRusak = j.barisRusakDilewati > 0;
+  box.classList.toggle("hidden", !ada && !adaRusak && !(j.torchDitemukan && j.torchDitemukan.length));
+  if (!ada && !adaRusak && !(j.torchDitemukan && j.torchDitemukan.length)) return;
 
-  document.getElementById("rv6PipaData").innerHTML = ada
-    ? j.temuanPipaData.map(t => `<p class="text-xs text-slate-600">• ${t}</p>`).join("")
+  const daftar = [];
+  if (adaRusak) {
+    daftar.push(`Data yang tampil BUKAN dari baris terakhir di tab snapshot — ${j.barisRusakDilewati} ` +
+      `baris di ekor tabel dilewati karena isinya rusak (kemungkinan tersisa dari sebelum perbaikan ` +
+      `format, lihat LOG.md Tahap 12f). Pertimbangkan bersihkan baris itu dari sheet kalau menetap.`);
+  }
+  if (ada) daftar.push(...j.temuanPipaData);
+  document.getElementById("rv6PipaData").innerHTML = daftar.length
+    ? daftar.map(t => `<p class="text-xs text-slate-600">• ${t}</p>`).join("")
     : `<p class="text-xs text-slate-400">Tidak ada temuan pipa data.</p>`;
 
   const torchEl = document.getElementById("rv6TorchKet");
