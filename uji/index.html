@@ -364,6 +364,30 @@
         </table>
       </div>
 
+      <!-- grafik rincian inflow / outflow (Tahap 11o) — bar horizontal per
+           pos, dengan pemilih periode yang mengendalikan KEDUA grafik -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p class="text-sm font-medium text-slate-700">Rincian Cash Inflow &amp; Cash Outflow</p>
+          <div id="ak5RincianPeriode" class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
+            <button data-periode="hariIni" onclick="ubahPeriodeRincian('hariIni')" class="px-3 py-1.5">Hari Ini</button>
+            <button data-periode="mtd" onclick="ubahPeriodeRincian('mtd')" class="px-3 py-1.5 border-l border-slate-200">MTD</button>
+            <button data-periode="bulanLalu" onclick="ubahPeriodeRincian('bulanLalu')" class="px-3 py-1.5 border-l border-slate-200">Bln Lalu</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs text-slate-500 mb-2">Cash Inflow</p>
+            <div class="relative" style="height:180px"><canvas id="ak5ChartRincianInflow"></canvas></div>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-2">Cash Outflow</p>
+            <div class="relative" style="height:220px"><canvas id="ak5ChartRincianOutflow"></canvas></div>
+          </div>
+        </div>
+        <p id="ak5RincianKosong" class="hidden text-xs text-slate-400 text-center py-6"></p>
+      </div>
+
       <!-- rincian inflow / outflow -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
         <div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
@@ -610,6 +634,8 @@ let sarmutTapis = "semua";   // semua | merah | hijau | abu
 let chartSarmut = null;      // grafik tren di panel detail
 let arusKasCache = null;     // data halaman 5 — Arus Kas Harian (di-fetch saat pertama dibuka)
 let chartArusKasTren = null; // grafik tren Total Saldo Akhir (Tahap 11o)
+let chartRincianInflow = null, chartRincianOutflow = null; // grafik rincian pos (Tahap 11o)
+let rincianPeriodeAktif = "hariIni"; // hariIni | mtd | bulanLalu — dipakai KEDUA grafik rincian
 
 /* ============================================================
  * LAPISAN API
@@ -1842,6 +1868,7 @@ function renderArusKasHarian(j) {
   document.getElementById("ak5TotalSaldo").textContent = fmtRp(j.saldoBank.totalAkhir.bulanIni);
 
   renderTrenArusKas(j.tren || []);
+  renderRincianChart(j.inflow, j.outflow);
 
   // tabel arus kas — 3 kolom (Hari Ini / s.d Bulan Ini / Bulan Lalu)
   const baris3 = (label, o) => `<tr class="border-t border-slate-100">
@@ -1945,6 +1972,74 @@ function renderTrenArusKas(tren) {
       },
     },
   });
+}
+
+/**
+ * Grafik rincian Cash Inflow & Cash Outflow (Tahap 11o) — bar horizontal
+ * per pos, SATU pemilih periode mengendalikan kedua grafik sekaligus
+ * (disepakati lewat mockup: Opsi A bar horizontal, karena outflow punya
+ * 8 pos berlabel panjang — donut jadi terlalu banyak potongan kecil).
+ * Datanya SUDAH ada di respons `getArusKasHarianDashboard` (`inflow`/
+ * `outflow`, masing-masing `hariIni`/`mtd`/`bulanLalu` per pos) — tidak
+ * perlu panggilan baru ke server saat ganti periode, cukup gambar ulang
+ * dari cache yang sama.
+ */
+function ubahPeriodeRincian(periode) {
+  rincianPeriodeAktif = periode;
+  ubahPeriodeRincianTombolAktif();
+  if (arusKasCache) renderRincianChart(arusKasCache.inflow, arusKasCache.outflow);
+}
+function ubahPeriodeRincianTombolAktif() {
+  document.querySelectorAll("#ak5RincianPeriode button").forEach((b, i) => {
+    if (i > 0) b.dataset.border = "1"; // border kiri antar tombol, sekali ditandai lalu dipakai ulang
+    b.className = "px-3 py-1.5" + (b.dataset.border ? " border-l border-slate-200" : "") +
+      (b.dataset.periode === rincianPeriodeAktif ? " bg-teal-600 text-white font-medium" : " text-slate-600 hover:bg-slate-50");
+  });
+}
+
+function renderRincianChart(inflow, outflow) {
+  ubahPeriodeRincianTombolAktif();
+
+  const wrap = [document.getElementById("ak5ChartRincianInflow").closest(".relative"), document.getElementById("ak5ChartRincianOutflow").closest(".relative")];
+  const kosong = document.getElementById("ak5RincianKosong");
+  const adaInflow = inflow && inflow.rincian && inflow.rincian.length;
+  const adaOutflow = outflow && outflow.rincian && outflow.rincian.length;
+
+  if (!adaInflow && !adaOutflow) {
+    wrap.forEach(w => w.classList.add("hidden"));
+    kosong.textContent = "Belum ada rincian untuk ditampilkan.";
+    kosong.classList.remove("hidden");
+    return;
+  }
+  wrap.forEach(w => w.classList.remove("hidden"));
+  kosong.classList.add("hidden");
+
+  function bangun(elId, chartLama, data, warna) {
+    if (chartLama) chartLama.destroy();
+    if (!data || !data.rincian || !data.rincian.length) return null;
+    return new Chart(document.getElementById(elId), {
+      type: "bar",
+      data: {
+        labels: data.rincian.map(r => r.label),
+        datasets: [{ data: data.rincian.map(r => r[rincianPeriodeAktif]), backgroundColor: warna }],
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => fmtRp(c.parsed.x) } },
+        },
+        scales: {
+          x: { ticks: { callback: v => v.toLocaleString("id-ID") } },
+          y: { ticks: { font: { size: 10 } } },
+        },
+      },
+    });
+  }
+  chartRincianInflow = bangun("ak5ChartRincianInflow", chartRincianInflow, inflow, "#0d9488");
+  chartRincianOutflow = bangun("ak5ChartRincianOutflow", chartRincianOutflow, outflow, "#dc2626");
 }
 
 /* ============================================================
