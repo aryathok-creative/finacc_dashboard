@@ -367,6 +367,7 @@
           </tr></thead>
           <tbody id="rv6TabelARA"></tbody>
         </table>
+        <p id="rv6ARASnapshotLamaKet" class="hidden text-[11px] text-amber-700/80 mt-2"></p>
       </div>
 
       <!-- Highlight Panel TORCH — poin 8, pola pakem laporan lama: qty & net
@@ -385,6 +386,7 @@
           </tr></thead>
           <tbody id="rv6TabelTorch"></tbody>
         </table>
+        <p id="rv6TorchSnapshotLamaKet" class="hidden text-[11px] text-blue-700/80 mt-2"></p>
       </div>
 
       <!-- pipa data — HANYA staf/admin (modul-harian §8), backend sudah menyaring
@@ -2546,10 +2548,22 @@ function renderKontributorTerbesar(dimPengirim, totalMtd, daftarAnomali) {
  * Revenue Net, "Hari Aktif" (X dari Y hari — dari `hariAktifARA`/`jumlahHari`
  * backend, Tahap 12), Rata-rata per Hari Aktif (DITEBALKAN). SELALU tampil
  * walau Rp 0 (bukan disembunyikan), sesuai pakem.
+ *
+ * PENTING (ditemukan 2026-08-04, laporan Doel): `hariAktifARA` adalah field
+ * BARU (revisi 9 poin) — snapshot yang ditulis SEBELUM revisi backend ini
+ * tidak punya field itu sama sekali di `dataJson`-nya. Kalau field itu
+ * `undefined` (BUKAN 0 — beda!), itu tandanya snapshot LAMA/BASI untuk
+ * bagian ini, bukan berarti Hari Aktif-nya genuinely 0. Ditampilkan "—" +
+ * catatan, bukan angka 0 yang bisa disalahartikan sebagai fakta bisnis.
  */
 function renderHighlightARA(ringkasan) {
   const p = ringkasan.periode, m = ringkasan.mtd;
+  const dataBaruAda = p.hariAktifARA !== undefined && m.hariAktifARA !== undefined;
   const rataAktif = (netARA, hariAktif) => hariAktif > 0 ? fmtRp(netARA / hariAktif) : fmtRp(0);
+  const hariAktifTeks = (hariAktif, jumlahHari) =>
+    hariAktif === undefined ? "—" : hariAktif + " dari " + jumlahHari + " hari";
+  const rataAktifTeks = (netARA, hariAktif) =>
+    hariAktif === undefined ? "—" : rataAktif(netARA, hariAktif);
   document.getElementById("rv6TabelARA").innerHTML = `
     <tr class="border-t border-amber-200">
       <td class="py-1.5 text-amber-800">Revenue Net</td>
@@ -2558,14 +2572,20 @@ function renderHighlightARA(ringkasan) {
     </tr>
     <tr class="border-t border-amber-200">
       <td class="py-1.5 text-amber-800">Hari Aktif</td>
-      <td class="py-1.5 text-right">${(p.hariAktifARA ?? 0)} dari ${p.jumlahHari} hari</td>
-      <td class="py-1.5 text-right">${(m.hariAktifARA ?? 0)} dari ${m.jumlahHari} hari</td>
+      <td class="py-1.5 text-right">${hariAktifTeks(p.hariAktifARA, p.jumlahHari)}</td>
+      <td class="py-1.5 text-right">${hariAktifTeks(m.hariAktifARA, m.jumlahHari)}</td>
     </tr>
     <tr class="border-t border-amber-200 font-semibold text-amber-900">
       <td class="py-1.5">Rata-rata per Hari Aktif</td>
-      <td class="py-1.5 text-right">${rataAktif(p.netARA, p.hariAktifARA)}</td>
-      <td class="py-1.5 text-right">${rataAktif(m.netARA, m.hariAktifARA)}</td>
+      <td class="py-1.5 text-right">${rataAktifTeks(p.netARA, p.hariAktifARA)}</td>
+      <td class="py-1.5 text-right">${rataAktifTeks(m.netARA, m.hariAktifARA)}</td>
     </tr>`;
+
+  const ket = document.getElementById("rv6ARASnapshotLamaKet");
+  if (!dataBaruAda) {
+    ket.textContent = "Baris \"Hari Aktif\" / \"Rata-rata per Hari Aktif\" belum bisa dihitung — snapshot ini ditulis SEBELUM field ini ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+    ket.classList.remove("hidden");
+  } else ket.classList.add("hidden");
 }
 
 /**
@@ -2574,37 +2594,56 @@ function renderHighlightARA(ringkasan) {
  * Nama test DITEMUKAN OTOMATIS oleh backend (`ringkasan.torch`/`torchMTD`,
  * §0.2 guard IgM/IgG) — BUKAN di-hardcode di sini, konsisten dengan pola
  * penemuan kolom TORCH di seluruh proyek.
+ *
+ * PENTING (ditemukan 2026-08-04, laporan Doel: "MTD menampilkan nol semua
+ * padahal angka MTD sudah ada"): `ringkasan.torchMTD` adalah field BARU
+ * (revisi 9 poin) — snapshot yang ditulis SEBELUM revisi backend ini (mis.
+ * hasil `perbaikiSnapshotRevenue30Juli()` yang dijalankan sebelum kode
+ * backend diperbarui) TIDAK PUNYA field ini sama sekali di `dataJson`-nya.
+ * `torchMtd === undefined` (bukan `{}`) berarti snapshot BASI untuk bagian
+ * ini — kolom MTD ditandai "—" + catatan, BUKAN angka 0 yang bisa terlihat
+ * seperti fakta bisnis (padahal cuma belum pernah dihitung). Solusinya BUKAN
+ * kode, tapi menjalankan ulang snapshot (lihat catatan di bawah tabel).
  */
 function renderHighlightTorch(ringkasan) {
   const torchPeriode = ringkasan.torch || {};
+  const torchMtdAda = ringkasan.torchMTD !== undefined;
   const torchMtd = ringkasan.torchMTD || {};
   const namaTes = Object.keys(torchPeriode).sort();
   const tbody = document.getElementById("rv6TabelTorch");
+  const ket = document.getElementById("rv6TorchSnapshotLamaKet");
   if (!namaTes.length) {
     tbody.innerHTML = `<tr><td colspan="5" class="py-3 text-center text-slate-400">Tidak ada kolom TORCH ditemukan.</td></tr>`;
+    ket.classList.add("hidden");
     return;
   }
   let totQtyP = 0, totNetP = 0, totQtyM = 0, totNetM = 0;
   const baris = namaTes.map(t => {
     const pt = torchPeriode[t] || { qty: 0, net: 0 };
     const mt = torchMtd[t] || { qty: 0, net: 0 };
-    totQtyP += pt.qty || 0; totNetP += pt.net || 0; totQtyM += mt.qty || 0; totNetM += mt.net || 0;
+    totQtyP += pt.qty || 0; totNetP += pt.net || 0;
+    if (torchMtdAda) { totQtyM += mt.qty || 0; totNetM += mt.net || 0; }
     return `<tr class="border-t border-blue-200">
       <td class="py-1.5 text-blue-900">${t}</td>
       <td class="py-1.5 text-right">${(pt.qty ?? 0).toLocaleString("id-ID")}</td>
       <td class="py-1.5 text-right">${fmtRp(pt.net)}</td>
-      <td class="py-1.5 text-right">${(mt.qty ?? 0).toLocaleString("id-ID")}</td>
-      <td class="py-1.5 text-right">${fmtRp(mt.net)}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? (mt.qty ?? 0).toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? fmtRp(mt.net) : "—"}</td>
     </tr>`;
   }).join("");
   const barisTotal = `<tr class="border-t border-blue-300 font-semibold text-blue-900">
       <td class="py-1.5">Total</td>
       <td class="py-1.5 text-right">${totQtyP.toLocaleString("id-ID")}</td>
       <td class="py-1.5 text-right">${fmtRp(totNetP)}</td>
-      <td class="py-1.5 text-right">${totQtyM.toLocaleString("id-ID")}</td>
-      <td class="py-1.5 text-right">${fmtRp(totNetM)}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? totQtyM.toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? fmtRp(totNetM) : "—"}</td>
     </tr>`;
   tbody.innerHTML = baris + barisTotal;
+
+  if (!torchMtdAda) {
+    ket.textContent = "Kolom MTD belum bisa dihitung — snapshot ini ditulis SEBELUM field ini ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+    ket.classList.remove("hidden");
+  } else ket.classList.add("hidden");
 }
 
 /** Grafik batang Net Revenue Periode/MTD/Bulan Lalu Penuh (revisi 9 poin, poin 9). */
