@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Finance Dashboard — PT Persada Medika Utama</title>
+<title>[UJI] Finance Dashboard — PT Persada Medika Utama</title>
+
+<!-- ============================================================
+     BANNER LINGKUNGAN UJI — jangan disalin ke produksi
+     Fungsinya satu: mencegah tertukarnya tab uji dengan tab
+     produksi saat keduanya dibuka berdampingan.
+     ============================================================ -->
+<div id="bannerUji" class="sticky top-0 z-50 bg-amber-400 text-amber-950 text-center
+     text-sm font-semibold py-2 px-4 shadow-sm">
+  ⚠️ LINGKUNGAN UJI — angka di halaman ini tidak boleh dipakai untuk pelaporan
+</div>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Chart.js: utama dari jsdelivr; kalau gagal, coba cdnjs (beberapa jaringan memblokir salah satunya) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
@@ -306,15 +316,18 @@
 
       <!-- grafik tren net revenue (beberapa snapshot terakhir) -->
       <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-        <p class="text-sm font-medium text-slate-700 mb-3">Tren Net Revenue Harian</p>
+        <p class="text-sm font-medium text-slate-700 mb-1">Tren Net Revenue Harian</p>
+        <p class="text-xs text-slate-500 mb-3">Titik ◆ oranye = snapshot yang mewakili LEBIH dari 1 hari (akhir pekan/hari libur digabung) — bukan lonjakan 1 hari. Arahkan kursor ke titik untuk rincian rentang tanggal.</p>
         <div id="rv6TrenWrap" class="relative" style="height:220px">
           <canvas id="rv6ChartTren"></canvas>
         </div>
         <p id="rv6TrenKosong" class="hidden text-xs text-slate-400 text-center py-8"></p>
       </div>
 
-      <!-- ringkasan 3 kolom periode (modul-harian §6): Periode / MTD / Bulan Lalu Penuh
-           + baris "Growth" (revisi 9 poin, poin 2) + grafik batang perbandingan (poin 9) -->
+      <!-- ringkasan 4 kolom periode (modul-harian §6): Periode / MTD / Bulan Lalu Penuh / YTD
+           + baris "Growth" (revisi 9 poin, poin 2) + grafik batang perbandingan (poin 9).
+           Kolom YTD ditambahkan 2026-08-04 (revisi lanjutan) — baris Growth-nya
+           SENGAJA n/a, belum ada kesepakatan baseline pembanding (lihat mockup). -->
       <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
         <p class="text-sm font-medium text-slate-700 mb-2">Ringkasan</p>
         <table class="w-full text-xs">
@@ -323,6 +336,7 @@
             <th class="text-right font-normal pb-2" id="rv6ColPeriode">Periode</th>
             <th class="text-right font-normal pb-2" id="rv6ColMtd">MTD</th>
             <th class="text-right font-normal pb-2" id="rv6ColBulanLalu">Bulan Lalu</th>
+            <th class="text-right font-normal pb-2" id="rv6ColYtd">YTD</th>
           </tr></thead>
           <tbody id="rv6TabelRingkasan"></tbody>
         </table>
@@ -740,7 +754,28 @@
 /* ============================================================
  * KONFIGURASI
  * ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbz5RspCLhpVa432MoXH_iZ_8gJi7I8pKZvPy5g8InVlu_r_9-xE2Vem3nDAU6UTLrBu/exec";
+/* ============================================================
+ * ⚠️ LINGKUNGAN UJI — BUKAN PRODUKSI
+ * Tempel URL /exec milik deployment UJI di bawah ini.
+ * URL produksi DILARANG dipakai di berkas ini.
+ * ============================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbxPkHUbgkILoKPPO5yZ2AOd5GjmJLLWNBszELYGMrwLXjUO1yYiXAKVTKVvUttZXSijjw/exec";
+
+/* Penjaga: berhenti dengan pesan jelas kalau URL belum diisi,
+   supaya tidak muncul error jaringan yang membingungkan. */
+if (API_URL.indexOf("GANTI_DENGAN") === 0) {
+  document.addEventListener("DOMContentLoaded", function () {
+    document.body.innerHTML =
+      '<div style="max-width:640px;margin:80px auto;padding:28px;border:2px solid #f59e0b;' +
+      'border-radius:14px;background:#fffbeb;font-family:-apple-system,Segoe UI,Roboto,sans-serif">' +
+      '<h1 style="margin:0 0 12px;font-size:18px;color:#92400e">API_URL lingkungan uji belum diisi</h1>' +
+      '<p style="margin:0 0 10px;color:#78350f;line-height:1.6">Buka <code>uji/index.html</code>, ' +
+      'cari <code>const API_URL</code>, lalu ganti dengan URL <code>/exec</code> milik deployment ' +
+      '<b>UJI</b> — bukan URL produksi.</p>' +
+      '<p style="margin:0;color:#78350f;line-height:1.6">Langkahnya ada di ' +
+      '<code>02_Hasil/PANDUAN-LINGKUNGAN-UJI_2026-07-29_v1.md</code> bagian 3.</p></div>';
+  });
+}
 
 let authToken = null;
 let currentUser = null;
@@ -2300,6 +2335,7 @@ function renderRevenueHarian(j) {
   const p = j.ringkasan.periode;
   const mtd = j.ringkasan.mtd;
   const blp = j.ringkasan.bulanLaluPenuh;
+  const ytd = j.ringkasan.ytd; // kolom ke-4 (revisi lanjutan 9 poin, 4 Agu 2026) — bisa undefined kalau snapshot lama
 
   // KPI cards — urutan Gross/Diskon/Net/Jumlah Nota (revisi 9 poin, poin 1),
   // tiap kartu diberi keterangan di bawah angka.
@@ -2319,11 +2355,13 @@ function renderRevenueHarian(j) {
 
   renderTrenRevenue(j.tren || []);
 
-  // ringkasan 3 kolom — header MTD/Bulan Lalu diberi label bulan sungguhan
-  // (modul-harian §6: "<BLN>-26 (MTD)" / "<BLNLALU>-26 (Penuh)")
+  // ringkasan 4 kolom — header MTD/Bulan Lalu diberi label bulan sungguhan
+  // (modul-harian §6: "<BLN>-26 (MTD)" / "<BLNLALU>-26 (Penuh)"); YTD diberi
+  // label tahun (revisi lanjutan 9 poin, 4 Agu 2026).
   document.getElementById("rv6ColPeriode").textContent = "Periode";
   document.getElementById("rv6ColMtd").textContent = fmtBulanLabelDariTanggal(j.tanggal) + " (MTD)";
   document.getElementById("rv6ColBulanLalu").textContent = fmtBulanLaluLabelDariTanggal(j.tanggal) + " (Penuh)";
+  document.getElementById("rv6ColYtd").textContent = "YTD " + j.tanggal.slice(0, 4);
 
   const baris3 = (label, key, formatter) => {
     const f = formatter || fmtRp;
@@ -2332,6 +2370,7 @@ function renderRevenueHarian(j) {
       <td class="py-1.5 text-right">${f(j.ringkasan.periode[key])}</td>
       <td class="py-1.5 text-right">${f(j.ringkasan.mtd[key])}</td>
       <td class="py-1.5 text-right">${f(j.ringkasan.bulanLaluPenuh[key])}</td>
+      <td class="py-1.5 text-right">${ytd ? f(ytd[key]) : "—"}</td>
     </tr>`;
   };
   const fmtAngka = v => (v ?? 0).toLocaleString("id-ID");
@@ -2340,6 +2379,8 @@ function renderRevenueHarian(j) {
   // Periode dibandingkan rata2/hari 7 hari SEBELUM periode (bukan total, supaya
   // adil terhadap periode multi-hari — modul-harian §5.3); MTD dibandingkan
   // Bulan Lalu Penuh; Bulan Lalu Penuh dibandingkan 2 Bulan Lalu Penuh.
+  // Kolom YTD SENGAJA n/a — disetujui Doel 4 Agu 2026 (belum ada kesepakatan
+  // baseline pembanding YTD, mis. YTD tahun lalu belum tersedia di sistem ini).
   const growthPeriode = pctDelta(p.rataPerHari, j.ringkasan.rata7HariSebelumnya);
   const growthMtd = pctDelta(mtd.net, blp.net);
   const growthBlp = j.ringkasan.duaBulanLaluPenuh ? pctDelta(blp.net, j.ringkasan.duaBulanLaluPenuh.net) : null;
@@ -2353,6 +2394,7 @@ function renderRevenueHarian(j) {
       <td class="py-1.5 text-right">${chipSel(growthPeriode)}</td>
       <td class="py-1.5 text-right">${chipSel(growthMtd)}</td>
       <td class="py-1.5 text-right">${chipSel(growthBlp)}</td>
+      <td class="py-1.5 text-right">${chipSel(null)}</td>
     </tr>`;
 
   document.getElementById("rv6TabelRingkasan").innerHTML =
@@ -2379,7 +2421,7 @@ function renderRevenueHarian(j) {
   const bucketAnomali = routeAnomaliRevenue(j.anomaliBisnis || []);
   document.getElementById("rv6AnomaliRingkasan").innerHTML = renderAnomaliList(bucketAnomali.ringkasan);
 
-  renderChartRingkasan(p, mtd, blp);
+  renderChartRingkasan(p, mtd, blp, ytd);
   renderDimensiRevenue(j.dimensi, bucketAnomali);
   renderKontributorTerbesar(j.dimensi && j.dimensi.pengirim, mtd.net, bucketAnomali.pengirim);
   renderHighlightARA(j.ringkasan);
@@ -2418,6 +2460,17 @@ function renderTrenRevenue(tren) {
   wrap.classList.remove("hidden");
   kosong.classList.add("hidden");
 
+  // Penanda titik gabungan multi-hari (revisi lanjutan, persetujuan Doel
+  // "1. Setuju dengan usulanmu" atas mockup-p6-ytd-segmen-tren.html) — titik
+  // dengan `hari > 1` (akhir pekan/libur digabung, dari `tglAwal`/`hari`
+  // backend `_rv6BangunTren_`) ditandai wajik amber lebih besar, BUKAN
+  // dianggap "hilang". `hari === null` (snapshot lama sebelum migrasi
+  // tglAwal) diperlakukan sama seperti hari === 1 — titik biasa, karena
+  // status gabungannya memang belum diketahui, bukan genuinely 1 hari.
+  const warnaTitik = tren.map(t => (t.hari && t.hari > 1) ? "#d97706" : "#0d9488");
+  const ukuranTitik = tren.map(t => (t.hari && t.hari > 1) ? 8 : 3);
+  const bentukTitik = tren.map(t => (t.hari && t.hari > 1) ? "rectRot" : "circle");
+
   if (chartRevenueTren) chartRevenueTren.destroy();
   chartRevenueTren = new Chart(document.getElementById("rv6ChartTren"), {
     type: "line",
@@ -2430,7 +2483,10 @@ function renderTrenRevenue(tren) {
         backgroundColor: "#0d948822",
         fill: true,
         tension: 0.3,
-        pointRadius: 3,
+        pointRadius: ukuranTitik,
+        pointBackgroundColor: warnaTitik,
+        pointBorderColor: warnaTitik,
+        pointStyle: bentukTitik,
       }],
     },
     options: {
@@ -2438,7 +2494,13 @@ function renderTrenRevenue(tren) {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: c => "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+        tooltip: { callbacks: { label: c => {
+          const t = tren[c.dataIndex];
+          if (t.hari && t.hari > 1) {
+            return ["Rp " + t.net.toLocaleString("id-ID") + " (TOTAL " + t.hari + " hari)", "Rentang: " + fmtTglPendek(t.tglAwal) + "–" + fmtTglPendek(t.tanggal)];
+          }
+          return "Rp " + t.net.toLocaleString("id-ID") + (t.hari === null ? "" : " (1 hari)");
+        } } },
       },
       scales: {
         y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } },
@@ -2471,17 +2533,25 @@ function renderDimensiRevenue(dimensi, bucketAnomali) {
 
   wrap.innerHTML = kunciDitampilkan.map(kunci => {
     const d = dimensi[kunci];
+    // Kolom Net YTD (revisi lanjutan: "tambah Net-YTD di Segmen") — data-driven,
+    // BUKAN hardcode per nama dimensi (PRD §7 kontrak perulangan): kalau baris
+    // pertama punya field netYTD, kolomnya otomatis muncul untuk dimensi APA
+    // SAJA yang backend-nya sudah kirim field itu (saat ini: segmen).
+    const adaYtd = d.baris.length > 0 && d.baris[0].netYTD !== undefined;
+
     const baris = d.baris.map(b => `<tr class="border-t border-slate-100">
         <td class="py-1.5 text-slate-600">${b.nama}</td>
         <td class="py-1.5 text-right">${fmtRp(b.net)}</td>
         <td class="py-1.5 text-right">${(b.jumlahNota ?? 0).toLocaleString("id-ID")}</td>
         <td class="py-1.5 text-right">${fmtRp(b.netMTD)}</td>
         <td class="py-1.5 text-right">${fmtRp(b.netBulanLaluPenuh)}</td>
+        ${adaYtd ? `<td class="py-1.5 text-right font-medium">${b.netYTD === undefined ? "—" : fmtRp(b.netYTD)}</td>` : ""}
       </tr>`).join("");
 
     const totalNet = d.baris.reduce((s, b) => s + (b.net || 0), 0);
     const totalMTD = d.baris.reduce((s, b) => s + (b.netMTD || 0), 0);
     const totalBlp = d.baris.reduce((s, b) => s + (b.netBulanLaluPenuh || 0), 0);
+    const totalYtd = d.baris.reduce((s, b) => s + (b.netYTD || 0), 0);
     const amanJumlahNota = kunci === "segmen";
     const totalNota = amanJumlahNota
       ? d.baris.reduce((s, b) => s + (b.jumlahNota || 0), 0).toLocaleString("id-ID")
@@ -2492,14 +2562,16 @@ function renderDimensiRevenue(dimensi, bucketAnomali) {
         <td class="py-1.5 text-right">${totalNota}</td>
         <td class="py-1.5 text-right">${fmtRp(totalMTD)}</td>
         <td class="py-1.5 text-right">${fmtRp(totalBlp)}</td>
+        ${adaYtd ? `<td class="py-1.5 text-right">${fmtRp(totalYtd)}</td>` : ""}
       </tr>` : "";
     const ketTotal = (d.baris.length && !amanJumlahNota)
       ? `<p class="text-[11px] text-slate-400 mt-2">Jumlah Nota pada baris Total tidak dijumlah — satu nota bisa mencakup lebih dari satu baris ${d.label.toLowerCase()} (modul-harian §5.2).</p>`
       : "";
 
-    // Grafik komposisi Jenis Pasien (revisi 9 poin, poin 9) — HANYA segmen.
+    // Grafik komposisi Segmen (revisi 9 poin, poin 9; diganti stacked bar di
+    // revisi lanjutan atas persetujuan Doel "Gaya grafik : Opsi B") — HANYA segmen.
     const chartHtml = kunci === "segmen"
-      ? `<div class="relative mt-4 mx-auto" style="height:200px;max-width:280px"><canvas id="rv6ChartSegmen"></canvas></div>`
+      ? `<div class="mt-4" style="height:220px"><canvas id="rv6ChartSegmen"></canvas></div>`
       : "";
 
     return `<div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
@@ -2511,6 +2583,7 @@ function renderDimensiRevenue(dimensi, bucketAnomali) {
           <th class="text-right font-normal pb-2">Jumlah Nota</th>
           <th class="text-right font-normal pb-2">Net MTD</th>
           <th class="text-right font-normal pb-2">Net Bln Lalu</th>
+          ${adaYtd ? `<th class="text-right font-normal pb-2">Net YTD</th>` : ""}
         </tr></thead>
         <tbody>${baris || `<tr><td colspan="5" class="py-3 text-center text-slate-400">Tidak ada baris.</td></tr>`}${barisTotal}</tbody>
       </table>
@@ -2691,18 +2764,24 @@ function renderHighlightTorch(ringkasan) {
   } else ket.classList.add("hidden");
 }
 
-/** Grafik batang Net Revenue Periode/MTD/Bulan Lalu Penuh (revisi 9 poin, poin 9). */
-function renderChartRingkasan(p, mtd, blp) {
+/**
+ * Grafik batang Net Revenue Periode/MTD/Bulan Lalu Penuh/YTD (revisi 9
+ * poin, poin 9; kolom YTD ditambahkan 4 Agu 2026). `ytd` bisa undefined
+ * kalau snapshot lama (sebelum field ini ada) — batangnya tetap digambar
+ * dengan tinggi 0 + label "n/a" di tooltip, bukan bikin grafik gagal total.
+ */
+function renderChartRingkasan(p, mtd, blp, ytd) {
   if (typeof Chart === "undefined") return;
   if (chartRevenueRingkasan) chartRevenueRingkasan.destroy();
+  const adaYtd = !!ytd;
   chartRevenueRingkasan = new Chart(document.getElementById("rv6ChartRingkasan"), {
     type: "bar",
     data: {
-      labels: ["Periode", "MTD", "Bulan Lalu Penuh"],
+      labels: ["Periode", "MTD", "Bulan Lalu Penuh", "YTD"],
       datasets: [{
         label: "Net Revenue",
-        data: [p.net, mtd.net, blp.net].map(v => Math.round((v || 0) / 1e6 * 10) / 10),
-        backgroundColor: ["#0d9488", "#2563eb", "#94a3b8"],
+        data: [p.net, mtd.net, blp.net, adaYtd ? ytd.net : 0].map(v => Math.round((v || 0) / 1e6 * 10) / 10),
+        backgroundColor: ["#0d9488", "#2563eb", "#94a3b8", "#7c3aed"],
       }],
     },
     options: {
@@ -2710,33 +2789,60 @@ function renderChartRingkasan(p, mtd, blp) {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: c => "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+        tooltip: { callbacks: { label: c => (c.dataIndex === 3 && !adaYtd)
+          ? "YTD belum tersedia (snapshot lama)"
+          : "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
       },
       scales: { y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } } },
     },
   });
 }
 
-/** Grafik donat komposisi Jenis Pasien berdasar Net (Periode) (revisi 9 poin, poin 9). */
+/**
+ * Grafik komposisi Segmen — stacked bar "Opsi B (100% proporsi)", persetujuan
+ * Doel ("review mockup-p6-ytd-segmen-tren.html ... 3. Gaya grafik : Opsi B").
+ * 4 kolom (Periode/MTD/Bulan Lalu/YTD), tiap kolom dinormalkan ke 100% supaya
+ * proporsi antar segmen kelihatan walau skala Rp tiap kolom jauh berbeda
+ * (Periode harian vs YTD setahun). Tooltip tetap tampilkan % DAN Rp juta.
+ * Warna dipakai ulang dari grafik "Segmen" di p1 (chartSegmen) — konsistensi
+ * visual antar halaman.
+ */
+const RV6_WARNA_SEGMEN = { APD: "#134e4a", APL: "#0d9488", APP: "#14b8a6", APS: "#99f6e4" };
 function renderChartSegmen(barisSegmen) {
   const canvas = document.getElementById("rv6ChartSegmen");
   if (!canvas || typeof Chart === "undefined" || !barisSegmen || !barisSegmen.length) return;
   if (chartRevenueSegmen) chartRevenueSegmen.destroy();
+
+  const KOLOM = ["net", "netMTD", "netBulanLaluPenuh", "netYTD"];
+  const LABEL_KOLOM = ["Periode", "MTD", "Bulan Lalu", "YTD"];
+  const totalPerKolom = KOLOM.map(k => barisSegmen.reduce((s, b) => s + (b[k] || 0), 0));
+
+  const datasets = barisSegmen.map(b => ({
+    label: b.nama,
+    backgroundColor: RV6_WARNA_SEGMEN[b.kode] || "#94a3b8",
+    data: KOLOM.map((k, i) => totalPerKolom[i] ? Math.round((b[k] || 0) / totalPerKolom[i] * 1000) / 10 : 0),
+  }));
+
   chartRevenueSegmen = new Chart(canvas, {
-    type: "doughnut",
-    data: {
-      labels: barisSegmen.map(b => b.nama),
-      datasets: [{
-        data: barisSegmen.map(b => b.net || 0),
-        backgroundColor: ["#0d9488", "#2563eb", "#d97706", "#7c3aed", "#64748b"],
-      }],
-    },
+    type: "bar",
+    data: { labels: LABEL_KOLOM, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } },
-        tooltip: { callbacks: { label: c => c.label + ": Rp " + (c.parsed || 0).toLocaleString("id-ID") } },
+        tooltip: { callbacks: { label: c => {
+          const kol = KOLOM[c.dataIndex];
+          const b = barisSegmen[c.datasetIndex];
+          const rp = b[kol] || 0;
+          const total = totalPerKolom[c.dataIndex];
+          const pct = total ? (rp / total * 100) : 0;
+          return b.nama + ": " + fmtPct(pct) + "% · Rp " + Math.round(rp / 1e6).toLocaleString("id-ID") + " jt";
+        } } },
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, ticks: { callback: v => v + "%" }, max: 100 },
       },
     },
   });
