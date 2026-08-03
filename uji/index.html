@@ -3,17 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>[UJI] Finance Dashboard — PT Persada Medika Utama</title>
-
-<!-- ============================================================
-     BANNER LINGKUNGAN UJI — jangan disalin ke produksi
-     Fungsinya satu: mencegah tertukarnya tab uji dengan tab
-     produksi saat keduanya dibuka berdampingan.
-     ============================================================ -->
-<div id="bannerUji" class="sticky top-0 z-50 bg-amber-400 text-amber-950 text-center
-     text-sm font-semibold py-2 px-4 shadow-sm">
-  ⚠️ LINGKUNGAN UJI — angka di halaman ini tidak boleh dipakai untuk pelaporan
-</div>
+<title>Finance Dashboard — PT Persada Medika Utama</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Chart.js: utama dari jsdelivr; kalau gagal, coba cdnjs (beberapa jaringan memblokir salah satunya) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
@@ -271,23 +261,39 @@
            warna & ambang SENGAJA sama seperti p5 (Tahap 11k), lihat rv6Banner di JS -->
       <div id="rv6Banner" class="hidden rounded-xl px-4 py-3 mb-4 text-sm font-medium"></div>
 
+      <!-- "Tanggal acuan" / "Tanggal pelaporan" — pengganti "Data per X" lama
+           (disetujui Doel 4 Agu 2026 lewat mockup-p6-tanggal-acuan.html).
+           Catatan periode >1 hari dibangun dari `j.periode.sebab` — ALASAN
+           ASLI dari modul kalender (weekend/libur nasional per tanggalnya,
+           bukan tebakan client-side), sudah ada di backend sejak Tahap 12a,
+           cuma belum pernah ditampilkan sampai sekarang. -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm text-slate-700"><span class="text-slate-400">Tanggal acuan</span> : <span id="rv6TanggalAcuan" class="font-medium">—</span></p>
+        <p class="text-sm text-slate-700 mt-0.5"><span class="text-slate-400">Tanggal pelaporan</span> : <span id="rv6TanggalPelaporan" class="font-medium">—</span></p>
+        <p id="rv6WaktuSnapshotKet" class="text-[11px] text-slate-400 mt-1"></p>
+        <p id="rv6CatatanPeriode" class="hidden text-xs mt-2 rounded-lg px-3 py-2"></p>
+      </div>
+
       <!-- KPI cards — urutan pakem laporan lama (revisi 9 poin, poin 1):
-           Gross Revenue, Diskon, Net Revenue, Jumlah Nota. Tiap kartu diberi
-           keterangan di bawah angka, sama seperti pola kartu di "Ringkasan
-           Eksekutif" (p1) — sebagian statis, sebagian dihitung dari data. -->
+           Revenue Kotor, Discount, Revenue Bersih, Jumlah Nota. Label
+           disetujui Doel 4 Agu 2026 (Opsi A: "Revenue" dipakai konsisten,
+           "Diskon" diganti "Discount" supaya seragam dgn Gross/Net). Tiap
+           kartu diberi keterangan di bawah angka, sama seperti pola kartu
+           di "Ringkasan Eksekutif" (p1) — sebagian statis, sebagian
+           dihitung dari data. -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
         <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
-          <p class="text-xs text-amber-700">Gross Revenue</p>
+          <p class="text-xs text-amber-700">Revenue Kotor</p>
           <p id="rv6Gross" class="text-xl font-semibold text-amber-800 mt-1">—</p>
           <p class="text-[11px] text-amber-600 mt-0.5">Sebelum diskon</p>
         </div>
         <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
-          <p class="text-xs text-purple-700">Diskon</p>
+          <p class="text-xs text-purple-700">Discount</p>
           <p id="rv6Diskon" class="text-xl font-semibold text-purple-800 mt-1">—</p>
           <p id="rv6DiskonKet" class="text-[11px] text-purple-600 mt-0.5"></p>
         </div>
         <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
-          <p class="text-xs text-teal-700">Net Revenue — Periode</p>
+          <p class="text-xs text-teal-700">Revenue Bersih — Periode</p>
           <p id="rv6Net" class="text-xl font-semibold text-teal-800 mt-1">—</p>
           <p id="rv6NetRata" class="text-[11px] text-teal-600 mt-0.5"></p>
         </div>
@@ -734,28 +740,7 @@
 /* ============================================================
  * KONFIGURASI
  * ============================================================ */
-/* ============================================================
- * ⚠️ LINGKUNGAN UJI — BUKAN PRODUKSI
- * Tempel URL /exec milik deployment UJI di bawah ini.
- * URL produksi DILARANG dipakai di berkas ini.
- * ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxPkHUbgkILoKPPO5yZ2AOd5GjmJLLWNBszELYGMrwLXjUO1yYiXAKVTKVvUttZXSijjw/exec";
-
-/* Penjaga: berhenti dengan pesan jelas kalau URL belum diisi,
-   supaya tidak muncul error jaringan yang membingungkan. */
-if (API_URL.indexOf("GANTI_DENGAN") === 0) {
-  document.addEventListener("DOMContentLoaded", function () {
-    document.body.innerHTML =
-      '<div style="max-width:640px;margin:80px auto;padding:28px;border:2px solid #f59e0b;' +
-      'border-radius:14px;background:#fffbeb;font-family:-apple-system,Segoe UI,Roboto,sans-serif">' +
-      '<h1 style="margin:0 0 12px;font-size:18px;color:#92400e">API_URL lingkungan uji belum diisi</h1>' +
-      '<p style="margin:0 0 10px;color:#78350f;line-height:1.6">Buka <code>uji/index.html</code>, ' +
-      'cari <code>const API_URL</code>, lalu ganti dengan URL <code>/exec</code> milik deployment ' +
-      '<b>UJI</b> — bukan URL produksi.</p>' +
-      '<p style="margin:0;color:#78350f;line-height:1.6">Langkahnya ada di ' +
-      '<code>02_Hasil/PANDUAN-LINGKUNGAN-UJI_2026-07-29_v1.md</code> bagian 3.</p></div>';
-  });
-}
+const API_URL = "https://script.google.com/macros/s/AKfycbz5RspCLhpVa432MoXH_iZ_8gJi7I8pKZvPy5g8InVlu_r_9-xE2Vem3nDAU6UTLrBu/exec";
 
 let authToken = null;
 let currentUser = null;
@@ -2221,6 +2206,64 @@ function fmtBulanLaluLabelDariTanggal(iso) {
   return fmtBulanLabelDariTanggal(y + "-" + (m < 10 ? "0" : "") + m + "-01");
 }
 
+/** 'YYYY-MM-DD' -> 'DD/MM/YYYY' (format yang diminta Doel untuk Tanggal Acuan/Pelaporan). */
+function fmtTglSlash(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || !p[1]) return String(iso || "—");
+  return String(p[2]).padStart(2, "0") + "/" + String(p[1]).padStart(2, "0") + "/" + p[0];
+}
+const RV6_NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+/** Nama hari Indonesia dari kunci 'YYYY-MM-DD', dihitung sendiri (bukan locale browser) supaya konsisten. */
+function fmtNamaHari(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || !p[1]) return "";
+  return RV6_NAMA_HARI[new Date(p[0], p[1] - 1, p[2]).getDay()];
+}
+
+/**
+ * "Tanggal Acuan" / "Tanggal Pelaporan" — pengganti "Data per X" (revisi
+ * disetujui Doel 4 Agu 2026 lewat mockup-p6-tanggal-acuan.html). Sumber
+ * datanya `j.periode` (hasil `hitungPeriode_` modul kalender, Tahap 7) yang
+ * SUDAH diteruskan apa adanya sejak Tahap 12a — field `sebab` berisi ALASAN
+ * ASLI per tanggal yang dilewati (akhir pekan ATAU nama hari libur
+ * sungguhan dari tab Libur), bukan tebakan/heuristik di frontend. Kalau
+ * `j.periode` entah kenapa tidak ada (snapshot sangat lama), turun ke
+ * `j.tanggal` saja supaya tidak pernah menampilkan halaman kosong.
+ */
+function renderTanggalAcuanRevenue(j) {
+  const periode = j.periode;
+  const acuanEl = document.getElementById("rv6TanggalAcuan");
+  const pelaporanEl = document.getElementById("rv6TanggalPelaporan");
+  const waktuKet = document.getElementById("rv6WaktuSnapshotKet");
+  const catatan = document.getElementById("rv6CatatanPeriode");
+
+  if (!periode || !periode.tglAwal) {
+    acuanEl.textContent = "data transaksi tanggal " + fmtTglSlash(j.tanggal);
+    pelaporanEl.textContent = "—";
+    waktuKet.textContent = "Snapshot ditulis " + (j.waktuDibuat || "—") + ".";
+    catatan.classList.add("hidden");
+    return;
+  }
+
+  const acuanTeks = periode.tglAwal === periode.tglAkhir
+    ? "data transaksi tanggal " + fmtTglSlash(periode.tglAwal)
+    : "data transaksi tanggal " + fmtTglSlash(periode.tglAwal) + " - " + fmtTglSlash(periode.tglAkhir);
+  acuanEl.textContent = acuanTeks;
+  pelaporanEl.textContent = fmtTglSlash(periode.hariIni) + " (" + fmtNamaHari(periode.hariIni) + ")";
+  waktuKet.textContent = "Snapshot ditulis " + (j.waktuDibuat || "—") + ".";
+
+  if (periode.jumlahHari > 1 && periode.sebab && periode.sebab.length) {
+    catatan.className = "text-xs mt-2 rounded-lg px-3 py-2 bg-amber-50 border border-amber-100 text-amber-800";
+    catatan.innerHTML = "<b>Tanggal acuan mencakup " + periode.jumlahHari + " hari.</b> " +
+      periode.sebab.slice().reverse().map(s => s).join("; ") + ". Revenue tanggal-tanggal itu tetap " +
+      "dihitung, hanya laporannya digabung ke hari kerja berikutnya karena back office libur " +
+      "(modul-harian §1) — bukan periode pilihan, murni mengikuti aturan H-1 + lewati akhir pekan/hari libur.";
+    catatan.classList.remove("hidden");
+  } else {
+    catatan.classList.add("hidden");
+  }
+}
+
 function renderRevenueHarian(j) {
   const kosong = document.getElementById("page6Kosong");
   const isi = document.getElementById("page6Isi");
@@ -2234,7 +2277,9 @@ function renderRevenueHarian(j) {
   kosong.classList.add("hidden");
   isi.classList.remove("hidden");
 
-  document.getElementById("periodeLabel").textContent = "Data per " + j.tanggal + " · diperbarui " + j.waktuDibuat;
+  document.getElementById("periodeLabel").textContent = "Tanggal pelaporan " + fmtTglSlash(j.periode && j.periode.hariIni || j.tanggal);
+
+  renderTanggalAcuanRevenue(j);
 
   // banner "belum diperbarui untuk hari ini" — warna & ambang SENGAJA
   // sama seperti p5 (Tahap 11k), lihat catatan endpoint p6.
