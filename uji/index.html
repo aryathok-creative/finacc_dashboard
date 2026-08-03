@@ -103,6 +103,18 @@
     </div>
   </div>
 
+  <!-- Indikator "sedang memuat" — global, muncul tiap ada request ke server
+       sedang berjalan (dipasang di lapisan _post, bukan per halaman), supaya
+       pindah tab tidak terlihat seperti "hang" padahal cuma menunggu server
+       (permintaan Doel 4 Agu 2026, setelah laporan loading lama di p6). -->
+  <div id="globalLoadingBar" class="hidden mb-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+    <svg class="animate-spin h-3.5 w-3.5 text-teal-600" viewBox="0 0 24 24" fill="none">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+    </svg>
+    <span>Memuat data dari server…</span>
+  </div>
+
   <!-- NAVIGASI HALAMAN -->
   <div id="pageNav" class="hidden mb-5">
     <div id="pageNavBtns" class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm bg-white"></div>
@@ -802,15 +814,31 @@ let chartRevenueSegmen = null;    // grafik donat komposisi Jenis Pasien (revisi
 /* ============================================================
  * LAPISAN API
  * ============================================================ */
+// Hitungan request yang sedang berjalan — dipakai indikator "Memuat data…"
+// (globalLoadingBar). Pakai HITUNGAN, bukan boolean, supaya kalau ada 2
+// request tumpang tindih, indikator tidak hilang begitu request PERTAMA
+// selesai padahal yang kedua masih jalan.
+let _jumlahRequestJalan = 0;
+function _setLoadingBar(tampil) {
+  const bar = document.getElementById("globalLoadingBar");
+  if (bar) bar.classList.toggle("hidden", !tampil);
+}
 async function _post(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-  });
-  const j = await res.json();
-  if (j && j.needLogin) { alert("Sesi berakhir, silakan login ulang."); location.reload(); throw new Error("Sesi berakhir"); }
-  return j;
+  _jumlahRequestJalan++;
+  _setLoadingBar(true);
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    });
+    const j = await res.json();
+    if (j && j.needLogin) { alert("Sesi berakhir, silakan login ulang."); location.reload(); throw new Error("Sesi berakhir"); }
+    return j;
+  } finally {
+    _jumlahRequestJalan = Math.max(0, _jumlahRequestJalan - 1);
+    if (_jumlahRequestJalan === 0) _setLoadingBar(false);
+  }
 }
 async function apiPost(payload) { payload.token = authToken; return _post(payload); }
 
@@ -2218,11 +2246,19 @@ function renderRincianChart(inflow, outflow) {
  * sama seperti Halaman 5 (Arus Kas Harian, Tahap 11).
  * ============================================================ */
 async function loadRevenueHarian() {
-  if (revenueCache) { renderRevenueHarian(revenueCache); return; }
-  const j = await apiPost({ action: "getRevenueHarianDashboard" });
-  if (!j.ok) { alert(j.error || "Gagal memuat data penjualan harian."); return; }
-  revenueCache = j;
-  renderRevenueHarian(j);
+  try {
+    if (revenueCache) { renderRevenueHarian(revenueCache); return; }
+    const j = await apiPost({ action: "getRevenueHarianDashboard" });
+    if (!j.ok) { alert(j.error || "Gagal memuat data penjualan harian."); return; }
+    revenueCache = j;
+    renderRevenueHarian(j);
+  } catch (e) {
+    // Kalau ada error saat MERENDER (bukan saat fetch — itu sudah ditangani
+    // di atas), tetap tampilkan pesan jelas, JANGAN biarkan halaman diam
+    // kosong tanpa keterangan apa pun (persis keluhan Doel: terlihat "hang").
+    console.error("Gagal merender Penjualan Harian:", e);
+    alert("Terjadi error saat menampilkan halaman Penjualan Harian: " + e.message + "\n\nBuka Console browser (F12) untuk detail, lalu laporkan pesannya.");
+  }
 }
 
 /** 'YYYY-MM-DD' -> label bulan pendek Indonesia + 2 digit tahun, mis. "Jul-26". Dipakai untuk header kolom MTD/Bulan Lalu (modul-harian §6). */
