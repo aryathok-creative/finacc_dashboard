@@ -271,8 +271,21 @@
            warna & ambang SENGAJA sama seperti p5 (Tahap 11k), lihat rv6Banner di JS -->
       <div id="rv6Banner" class="hidden rounded-xl px-4 py-3 mb-4 text-sm font-medium"></div>
 
-      <!-- KPI cards -->
+      <!-- KPI cards — urutan pakem laporan lama (revisi 9 poin, poin 1):
+           Gross Revenue, Diskon, Net Revenue, Jumlah Nota. Tiap kartu diberi
+           keterangan di bawah angka, sama seperti pola kartu di "Ringkasan
+           Eksekutif" (p1) — sebagian statis, sebagian dihitung dari data. -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
+          <p class="text-xs text-amber-700">Gross Revenue</p>
+          <p id="rv6Gross" class="text-xl font-semibold text-amber-800 mt-1">—</p>
+          <p class="text-[11px] text-amber-600 mt-0.5">Sebelum diskon</p>
+        </div>
+        <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <p class="text-xs text-purple-700">Diskon</p>
+          <p id="rv6Diskon" class="text-xl font-semibold text-purple-800 mt-1">—</p>
+          <p id="rv6DiskonKet" class="text-[11px] text-purple-600 mt-0.5"></p>
+        </div>
         <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
           <p class="text-xs text-teal-700">Net Revenue — Periode</p>
           <p id="rv6Net" class="text-xl font-semibold text-teal-800 mt-1">—</p>
@@ -281,14 +294,7 @@
         <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <p class="text-xs text-blue-700">Jumlah Nota</p>
           <p id="rv6Nota" class="text-xl font-semibold text-blue-800 mt-1">—</p>
-        </div>
-        <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
-          <p class="text-xs text-amber-700">Gross Revenue</p>
-          <p id="rv6Gross" class="text-xl font-semibold text-amber-800 mt-1">—</p>
-        </div>
-        <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
-          <p class="text-xs text-purple-700">Diskon</p>
-          <p id="rv6Diskon" class="text-xl font-semibold text-purple-800 mt-1">—</p>
+          <p id="rv6NotaKet" class="text-[11px] text-blue-600 mt-0.5"></p>
         </div>
       </div>
 
@@ -301,7 +307,8 @@
         <p id="rv6TrenKosong" class="hidden text-xs text-slate-400 text-center py-8"></p>
       </div>
 
-      <!-- ringkasan 3 kolom periode (modul-harian §6): Periode / MTD / Bulan Lalu Penuh -->
+      <!-- ringkasan 3 kolom periode (modul-harian §6): Periode / MTD / Bulan Lalu Penuh
+           + baris "Growth" (revisi 9 poin, poin 2) + grafik batang perbandingan (poin 9) -->
       <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
         <p class="text-sm font-medium text-slate-700 mb-2">Ringkasan</p>
         <table class="w-full text-xs">
@@ -314,18 +321,70 @@
           <tbody id="rv6TabelRingkasan"></tbody>
         </table>
         <p id="rv6RataKet" class="hidden text-xs text-slate-400 mt-2"></p>
+        <p id="rv6GrowthKet" class="text-xs text-slate-400 mt-2"></p>
+        <div id="rv6AnomaliRingkasan" class="space-y-1.5 mt-2"></div>
+        <div id="rv6ChartRingkasanWrap" class="relative mt-4" style="height:200px">
+          <canvas id="rv6ChartRingkasan"></canvas>
+        </div>
       </div>
 
-      <!-- dimensi (segmen/departemen/unit/pengirim) — DIRENDER LEWAT PERULANGAN
+      <!-- dimensi (segmen/departemen/unit) — DIRENDER LEWAT PERULANGAN
            (PRD §7: "tabel dan drill-down dibuat dengan perulangan atas dimensi,
            bukan menulis empat tabel terpisah"). Menambah dimensi baru di backend
-           = kartu baru muncul otomatis di sini, tanpa ubah HTML. -->
+           = kartu baru muncul otomatis di sini, tanpa ubah HTML. "Pengirim" TIDAK
+           lagi lewat sini (revisi 9 poin, poin 6) — diganti kartu "Kontributor
+           Terbesar (MTD)" khusus di bawah, pola pakem laporan lama. Tiap kartu
+           dapat baris Total (poin 3-5) + anomali bisnis terkait (poin 7). -->
       <div id="rv6DimensiWrap" class="space-y-4 mb-5"></div>
 
-      <!-- anomali bisnis (modul-harian §7 & §8 — HANYA temuan bisnis, tampil semua peran) -->
-      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-        <p class="text-sm font-medium text-slate-700 mb-2">Anomali &amp; Temuan Bisnis</p>
-        <div id="rv6Anomali" class="space-y-1.5"></div>
+      <!-- Kontributor Terbesar (MTD) — pengganti breakdown pengirim per segmen
+           (revisi 9 poin, poin 6): satu daftar gabungan top pengirim, sama
+           persis pola "Kontributor Terbesar (MTD)" di laporan terjadwal lama,
+           bersumber dari dimensi.pengirim (Pengirim_Harian) yang sudah dibaca. -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Kontributor Terbesar (MTD) <span class="text-xs font-normal text-slate-400">— Top 8 Pengirim</span></p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">#</th>
+            <th class="text-left font-normal pb-2">Pengirim</th>
+            <th class="text-right font-normal pb-2">Net MTD</th>
+            <th class="text-right font-normal pb-2">% dari MTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelKontributor"></tbody>
+        </table>
+        <div id="rv6AnomaliKontributor" class="space-y-1.5 mt-2"></div>
+      </div>
+
+      <!-- Highlight Departemen Anestesi (ARA) — poin 8, pola pakem laporan lama:
+           selalu tampil walau Rp 0, baris Rata-rata per Hari Aktif ditebalkan. -->
+      <div class="bg-amber-50/40 border border-amber-200 border-l-4 border-l-amber-600 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-amber-900 mb-2">Highlight Departemen Anestesi (ARA)</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-amber-700/70 border-b border-amber-200">
+            <th class="text-left font-normal pb-2">Metrik</th>
+            <th class="text-right font-normal pb-2">Periode</th>
+            <th class="text-right font-normal pb-2">MTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelARA"></tbody>
+        </table>
+      </div>
+
+      <!-- Highlight Panel TORCH — poin 8, pola pakem laporan lama: qty & net
+           Periode + MTD per test (nilai 0 tetap tampil) + baris Total. Nama
+           test DITEMUKAN OTOMATIS oleh backend (§0.2 guard IgM/IgG), bukan
+           di-hardcode di sini. -->
+      <div class="bg-blue-50/40 border border-blue-200 border-l-4 border-l-blue-600 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-blue-900 mb-2">Highlight Panel TORCH</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-blue-700/70 border-b border-blue-200">
+            <th class="text-left font-normal pb-2">Test</th>
+            <th class="text-right font-normal pb-2">Qty Periode</th>
+            <th class="text-right font-normal pb-2">Net Periode</th>
+            <th class="text-right font-normal pb-2">Qty MTD</th>
+            <th class="text-right font-normal pb-2">Net MTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelTorch"></tbody>
+        </table>
       </div>
 
       <!-- pipa data — HANYA staf/admin (modul-harian §8), backend sudah menyaring
@@ -715,6 +774,8 @@ let chartRincianInflow = null, chartRincianOutflow = null; // grafik rincian pos
 let rincianPeriodeAktif = "hariIni"; // hariIni | mtd | bulanLalu — dipakai KEDUA grafik rincian
 let revenueCache = null;     // data halaman 6 — Penjualan Harian (Tahap 12)
 let chartRevenueTren = null; // grafik tren Net Revenue harian
+let chartRevenueRingkasan = null; // grafik batang Ringkasan Periode/MTD/Bulan Lalu (revisi 9 poin, poin 9)
+let chartRevenueSegmen = null;    // grafik donat komposisi Jenis Pasien (revisi 9 poin, poin 9)
 
 /* ============================================================
  * LAPISAN API
@@ -2190,13 +2251,24 @@ function renderRevenueHarian(j) {
   }
 
   const p = j.ringkasan.periode;
+  const mtd = j.ringkasan.mtd;
+  const blp = j.ringkasan.bulanLaluPenuh;
+
+  // KPI cards — urutan Gross/Diskon/Net/Jumlah Nota (revisi 9 poin, poin 1),
+  // tiap kartu diberi keterangan di bawah angka.
+  document.getElementById("rv6Gross").textContent = fmtRp(p.gross);
+  document.getElementById("rv6Diskon").textContent = fmtRp(p.disc);
+  document.getElementById("rv6DiskonKet").textContent = p.gross > 0
+    ? fmtPct(p.disc / p.gross * 100) + "% dari gross"
+    : "";
   document.getElementById("rv6Net").textContent = fmtRp(p.net);
   document.getElementById("rv6NetRata").textContent = p.jumlahHari > 1
     ? "Rata-rata/hari: Rp " + fmtRp(p.rataPerHari) + " (" + p.jumlahHari + " hari)"
     : "";
   document.getElementById("rv6Nota").textContent = (p.jumlahNota ?? 0).toLocaleString("id-ID");
-  document.getElementById("rv6Gross").textContent = fmtRp(p.gross);
-  document.getElementById("rv6Diskon").textContent = fmtRp(p.disc);
+  document.getElementById("rv6NotaKet").textContent = p.jumlahNota > 0
+    ? "Rp " + fmtRp(p.net / p.jumlahNota) + " / nota"
+    : "";
 
   renderTrenRevenue(j.tren || []);
 
@@ -2216,7 +2288,28 @@ function renderRevenueHarian(j) {
     </tr>`;
   };
   const fmtAngka = v => (v ?? 0).toLocaleString("id-ID");
+
+  // Baris "Growth" (revisi 9 poin, poin 2) — pola dipilih via AskUserQuestion:
+  // Periode dibandingkan rata2/hari 7 hari SEBELUM periode (bukan total, supaya
+  // adil terhadap periode multi-hari — modul-harian §5.3); MTD dibandingkan
+  // Bulan Lalu Penuh; Bulan Lalu Penuh dibandingkan 2 Bulan Lalu Penuh.
+  const growthPeriode = pctDelta(p.rataPerHari, j.ringkasan.rata7HariSebelumnya);
+  const growthMtd = pctDelta(mtd.net, blp.net);
+  const growthBlp = j.ringkasan.duaBulanLaluPenuh ? pctDelta(blp.net, j.ringkasan.duaBulanLaluPenuh.net) : null;
+  const chipSel = pct => {
+    if (pct === null || pct === undefined) return `<span class="text-[11px] text-slate-400">n/a</span>`;
+    const up = pct >= 0;
+    return `<span class="text-[11px] font-medium ${up ? 'text-emerald-700' : 'text-red-600'}">${up ? '▲' : '▼'} ${fmtPct(Math.abs(pct))}%</span>`;
+  };
+  const barisGrowth = `<tr class="border-t border-slate-200 bg-slate-50/70">
+      <td class="py-1.5 text-slate-700 font-medium">Growth</td>
+      <td class="py-1.5 text-right">${chipSel(growthPeriode)}</td>
+      <td class="py-1.5 text-right">${chipSel(growthMtd)}</td>
+      <td class="py-1.5 text-right">${chipSel(growthBlp)}</td>
+    </tr>`;
+
   document.getElementById("rv6TabelRingkasan").innerHTML =
+    barisGrowth +
     baris3("Gross", "gross") +
     baris3("Diskon", "disc") +
     baris3("Net", "net") +
@@ -2230,9 +2323,30 @@ function renderRevenueHarian(j) {
     rataKet.classList.remove("hidden");
   } else rataKet.classList.add("hidden");
 
-  renderDimensiRevenue(j.dimensi);
-  renderAnomaliRevenue(j.anomaliBisnis || []);
+  document.getElementById("rv6GrowthKet").textContent =
+    `Growth Periode = rata-rata/hari vs rata-rata 7 hari sebelumnya. Growth MTD = vs Bulan Lalu Penuh. ` +
+    `Growth Bulan Lalu = vs 2 bulan sebelumnya (${j.ringkasan.duaBulanLaluPenuh ? fmtBulanLaluLabelDariTanggal(fmtBulanLaluTglAwal(j.tanggal)) : "—"}).`;
+
+  // Anomali bisnis (poin 7) DIBAGI ke section yang relevan — box gabungan
+  // "Anomali & Temuan Bisnis" DIHAPUS, lihat routeAnomaliRevenue().
+  const bucketAnomali = routeAnomaliRevenue(j.anomaliBisnis || []);
+  document.getElementById("rv6AnomaliRingkasan").innerHTML = renderAnomaliList(bucketAnomali.ringkasan);
+
+  renderChartRingkasan(p, mtd, blp);
+  renderDimensiRevenue(j.dimensi, bucketAnomali);
+  renderKontributorTerbesar(j.dimensi && j.dimensi.pengirim, mtd.net, bucketAnomali.pengirim);
+  renderHighlightARA(j.ringkasan);
+  renderHighlightTorch(j.ringkasan);
   renderPipaDataRevenue(j);
+}
+
+/** 'YYYY-MM-DD' -> tanggal apa saja di bulan SEBELUMNYA (untuk label "2 bulan lalu" lewat fmtBulanLaluLabelDariTanggal, yang menghitung 1 bulan mundur dari argumennya). */
+function fmtBulanLaluTglAwal(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length < 2 || !p[1]) return iso;
+  let y = p[0], m = p[1] - 1;
+  if (m < 1) { m = 12; y -= 1; }
+  return y + "-" + (m < 10 ? "0" : "") + m + "-01";
 }
 
 /**
@@ -2287,28 +2401,60 @@ function renderTrenRevenue(tren) {
 }
 
 /**
- * Render SELURUH dimensi lewat PERULANGAN — kontrak PRD §7 mengikat:
- * "tabel dan drill-down dibuat dengan perulangan atas dimensi, bukan
- * menulis empat tabel terpisah. Menambah dimensi = menambah satu baris
- * konfigurasi, tampilannya muncul sendiri." Kalau backend suatu saat
- * menambah dimensi baru (mis. Test_Harian/Dokter_Harian, PRD §7), kartu
- * barunya otomatis muncul di sini TANPA ubah HTML/JS ini sama sekali.
+ * Render dimensi (segmen/departemen/unit) lewat PERULANGAN — kontrak PRD §7
+ * mengikat: "tabel dan drill-down dibuat dengan perulangan atas dimensi,
+ * bukan menulis empat tabel terpisah." Kalau backend suatu saat menambah
+ * dimensi baru (mis. Test_Harian/Dokter_Harian, PRD §7), kartu barunya
+ * otomatis muncul di sini TANPA ubah HTML/JS ini sama sekali.
+ *
+ * "pengirim" SENGAJA DILEWATI di sini (revisi 9 poin, poin 6) — punya kartu
+ * khusus "Kontributor Terbesar (MTD)" lewat renderKontributorTerbesar(),
+ * bukan tabel generik seperti dimensi lain.
+ *
+ * Tiap kartu diberi baris Total (poin 3-5): Net (Periode)/Net MTD/Net Bulan
+ * Lalu SELALU dijumlah; Jumlah Nota HANYA dijumlah untuk "segmen" (mutually
+ * exclusive, modul-harian §5.2) — untuk departemen/unit satu nota bisa
+ * mencakup lebih dari satu baris, jadi TIDAK dijumlah (ditandai "—").
  */
-function renderDimensiRevenue(dimensi) {
+function renderDimensiRevenue(dimensi, bucketAnomali) {
   const wrap = document.getElementById("rv6DimensiWrap");
   if (!dimensi) { wrap.innerHTML = ""; return; }
 
-  wrap.innerHTML = Object.keys(dimensi).map(kunci => {
+  const kunciDitampilkan = Object.keys(dimensi).filter(k => k !== "pengirim");
+
+  wrap.innerHTML = kunciDitampilkan.map(kunci => {
     const d = dimensi[kunci];
-    const adaPasien = d.baris.length && d.baris[0].jumlahPasien !== undefined;
     const baris = d.baris.map(b => `<tr class="border-t border-slate-100">
         <td class="py-1.5 text-slate-600">${b.nama}</td>
         <td class="py-1.5 text-right">${fmtRp(b.net)}</td>
         <td class="py-1.5 text-right">${(b.jumlahNota ?? 0).toLocaleString("id-ID")}</td>
-        ${adaPasien ? `<td class="py-1.5 text-right">${(b.jumlahPasien ?? 0).toLocaleString("id-ID")}</td>` : ""}
         <td class="py-1.5 text-right">${fmtRp(b.netMTD)}</td>
         <td class="py-1.5 text-right">${fmtRp(b.netBulanLaluPenuh)}</td>
       </tr>`).join("");
+
+    const totalNet = d.baris.reduce((s, b) => s + (b.net || 0), 0);
+    const totalMTD = d.baris.reduce((s, b) => s + (b.netMTD || 0), 0);
+    const totalBlp = d.baris.reduce((s, b) => s + (b.netBulanLaluPenuh || 0), 0);
+    const amanJumlahNota = kunci === "segmen";
+    const totalNota = amanJumlahNota
+      ? d.baris.reduce((s, b) => s + (b.jumlahNota || 0), 0).toLocaleString("id-ID")
+      : "—";
+    const barisTotal = d.baris.length ? `<tr class="border-t border-slate-300 font-semibold text-slate-800">
+        <td class="py-1.5">Total</td>
+        <td class="py-1.5 text-right">${fmtRp(totalNet)}</td>
+        <td class="py-1.5 text-right">${totalNota}</td>
+        <td class="py-1.5 text-right">${fmtRp(totalMTD)}</td>
+        <td class="py-1.5 text-right">${fmtRp(totalBlp)}</td>
+      </tr>` : "";
+    const ketTotal = (d.baris.length && !amanJumlahNota)
+      ? `<p class="text-[11px] text-slate-400 mt-2">Jumlah Nota pada baris Total tidak dijumlah — satu nota bisa mencakup lebih dari satu baris ${d.label.toLowerCase()} (modul-harian §5.2).</p>`
+      : "";
+
+    // Grafik komposisi Jenis Pasien (revisi 9 poin, poin 9) — HANYA segmen.
+    const chartHtml = kunci === "segmen"
+      ? `<div class="relative mt-4 mx-auto" style="height:200px;max-width:280px"><canvas id="rv6ChartSegmen"></canvas></div>`
+      : "";
+
     return `<div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
       <p class="text-sm font-medium text-slate-700 mb-2">${d.label} <span class="text-xs font-normal text-slate-400">(${d.baris.length} baris)</span></p>
       <table class="w-full text-xs">
@@ -2316,24 +2462,200 @@ function renderDimensiRevenue(dimensi) {
           <th class="text-left font-normal pb-2">Nama</th>
           <th class="text-right font-normal pb-2">Net (Periode)</th>
           <th class="text-right font-normal pb-2">Jumlah Nota</th>
-          ${adaPasien ? '<th class="text-right font-normal pb-2">Jumlah Pasien</th>' : ""}
           <th class="text-right font-normal pb-2">Net MTD</th>
           <th class="text-right font-normal pb-2">Net Bln Lalu</th>
         </tr></thead>
-        <tbody>${baris || `<tr><td colspan="6" class="py-3 text-center text-slate-400">Tidak ada baris.</td></tr>`}</tbody>
+        <tbody>${baris || `<tr><td colspan="5" class="py-3 text-center text-slate-400">Tidak ada baris.</td></tr>`}${barisTotal}</tbody>
       </table>
+      ${ketTotal}
+      <div class="space-y-1.5 mt-2" id="rv6AnomaliDim-${kunci}"></div>
+      ${chartHtml}
     </div>`;
   }).join("");
+
+  // Isi anomali per kartu + grafik segmen SETELAH innerHTML terpasang
+  // (elemen "rv6AnomaliDim-*"/"rv6ChartSegmen" baru ada di DOM di titik ini).
+  kunciDitampilkan.forEach(kunci => {
+    const el = document.getElementById("rv6AnomaliDim-" + kunci);
+    if (el) el.innerHTML = renderAnomaliList((bucketAnomali && bucketAnomali[kunci]) || []);
+  });
+  if (dimensi.segmen) renderChartSegmen(dimensi.segmen.baris);
 }
 
-/** Anomali bisnis (modul-harian §7) — tampil untuk SEMUA peran, termasuk Direksi. */
-function renderAnomaliRevenue(daftar) {
-  const el = document.getElementById("rv6Anomali");
-  if (!daftar.length) { el.innerHTML = `<p class="text-xs text-slate-400">Tidak ada anomali terdeteksi.</p>`; return; }
-  el.innerHTML = daftar.map(a => {
-    if (a.jenis === "tidak_ada") return `<p class="text-xs text-slate-400">${a.pesan}</p>`;
-    return `<p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">• ${a.pesan}</p>`;
+/**
+ * Anomali bisnis (modul-harian §7) — TIDAK LAGI satu box gabungan (revisi 9
+ * poin, poin 7: "Anomali & Temuan Bisnis" dihapus, keterangan dipindah ke
+ * section relevan). `routeAnomaliRevenue` membagi daftar per `jenis`/`dimensi`
+ * ke: ringkasan (lonjakan/rasio diskon/nota tanpa nilai), segmen (komposisi
+ * segmen), departemen, unit, pengirim (konsentrasi/berhenti total/pelanggan
+ * hilang & baru). `renderAnomaliList` dipakai ulang di semua section itu.
+ */
+function routeAnomaliRevenue(daftar) {
+  const bucket = { ringkasan: [], segmen: [], departemen: [], unit: [], pengirim: [] };
+  const petaDimensi = { Pengirim: "pengirim", Departemen: "departemen", Unit: "unit" };
+  daftar.forEach(a => {
+    if (a.jenis === "tidak_ada") return;
+    if (a.jenis === "lonjakan_penurunan" || a.jenis === "rasio_diskon" || a.jenis === "nota_tanpa_nilai") {
+      bucket.ringkasan.push(a);
+    } else if (a.jenis === "komposisi_segmen") {
+      bucket.segmen.push(a);
+    } else if (a.jenis === "konsentrasi" || a.jenis === "berhenti_total") {
+      (bucket[petaDimensi[a.dimensi]] || bucket.ringkasan).push(a);
+    } else if (a.jenis === "pelanggan_hilang" || a.jenis === "pelanggan_baru") {
+      bucket.pengirim.push(a);
+    } else {
+      bucket.ringkasan.push(a); // fallback aman: jenis tak dikenal tetap tampil, bukan hilang diam-diam
+    }
+  });
+  return bucket;
+}
+
+/** Render daftar anomali (hasil routeAnomaliRevenue) jadi HTML — kosong jika tidak ada. */
+function renderAnomaliList(daftar) {
+  if (!daftar || !daftar.length) return "";
+  return daftar.map(a => `<p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">• ${a.pesan}</p>`).join("");
+}
+
+/**
+ * "Kontributor Terbesar (MTD)" — poin 6, pengganti breakdown pengirim per
+ * segmen (dibatalkan karena Pengirim_Harian tak punya kolom segmen — lihat
+ * LOG.md). Pola & sumber SAMA PERSIS dengan laporan terjadwal lama: Top 8
+ * pengirim diurutkan Net MTD desc + % dari total Net MTD perusahaan.
+ */
+function renderKontributorTerbesar(dimPengirim, totalMtd, daftarAnomali) {
+  const tbody = document.getElementById("rv6TabelKontributor");
+  if (!dimPengirim || !dimPengirim.baris || !dimPengirim.baris.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-400">Tidak ada data pengirim.</td></tr>`;
+  } else {
+    const top8 = dimPengirim.baris.slice().sort((a, b) => (b.netMTD || 0) - (a.netMTD || 0)).slice(0, 8);
+    tbody.innerHTML = top8.map((b, i) => {
+      const persen = totalMtd ? (b.netMTD / totalMtd * 100) : null;
+      return `<tr class="border-t border-slate-100">
+        <td class="py-1.5 text-slate-400">${i + 1}</td>
+        <td class="py-1.5 text-slate-600">${b.nama}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.netMTD)}</td>
+        <td class="py-1.5 text-right">${persen === null ? "—" : fmtPct(persen) + "%"}</td>
+      </tr>`;
+    }).join("");
+  }
+  document.getElementById("rv6AnomaliKontributor").innerHTML = renderAnomaliList(daftarAnomali);
+}
+
+/**
+ * Highlight Departemen Anestesi (ARA) — poin 8, pola pakem laporan lama:
+ * Revenue Net, "Hari Aktif" (X dari Y hari — dari `hariAktifARA`/`jumlahHari`
+ * backend, Tahap 12), Rata-rata per Hari Aktif (DITEBALKAN). SELALU tampil
+ * walau Rp 0 (bukan disembunyikan), sesuai pakem.
+ */
+function renderHighlightARA(ringkasan) {
+  const p = ringkasan.periode, m = ringkasan.mtd;
+  const rataAktif = (netARA, hariAktif) => hariAktif > 0 ? fmtRp(netARA / hariAktif) : fmtRp(0);
+  document.getElementById("rv6TabelARA").innerHTML = `
+    <tr class="border-t border-amber-200">
+      <td class="py-1.5 text-amber-800">Revenue Net</td>
+      <td class="py-1.5 text-right">${fmtRp(p.netARA)}</td>
+      <td class="py-1.5 text-right">${fmtRp(m.netARA)}</td>
+    </tr>
+    <tr class="border-t border-amber-200">
+      <td class="py-1.5 text-amber-800">Hari Aktif</td>
+      <td class="py-1.5 text-right">${(p.hariAktifARA ?? 0)} dari ${p.jumlahHari} hari</td>
+      <td class="py-1.5 text-right">${(m.hariAktifARA ?? 0)} dari ${m.jumlahHari} hari</td>
+    </tr>
+    <tr class="border-t border-amber-200 font-semibold text-amber-900">
+      <td class="py-1.5">Rata-rata per Hari Aktif</td>
+      <td class="py-1.5 text-right">${rataAktif(p.netARA, p.hariAktifARA)}</td>
+      <td class="py-1.5 text-right">${rataAktif(m.netARA, m.hariAktifARA)}</td>
+    </tr>`;
+}
+
+/**
+ * Highlight Panel TORCH — poin 8, pola pakem laporan lama: qty & net Periode
+ * + qty & net MTD per test (nilai 0 tetap tampil), baris Total di akhir.
+ * Nama test DITEMUKAN OTOMATIS oleh backend (`ringkasan.torch`/`torchMTD`,
+ * §0.2 guard IgM/IgG) — BUKAN di-hardcode di sini, konsisten dengan pola
+ * penemuan kolom TORCH di seluruh proyek.
+ */
+function renderHighlightTorch(ringkasan) {
+  const torchPeriode = ringkasan.torch || {};
+  const torchMtd = ringkasan.torchMTD || {};
+  const namaTes = Object.keys(torchPeriode).sort();
+  const tbody = document.getElementById("rv6TabelTorch");
+  if (!namaTes.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="py-3 text-center text-slate-400">Tidak ada kolom TORCH ditemukan.</td></tr>`;
+    return;
+  }
+  let totQtyP = 0, totNetP = 0, totQtyM = 0, totNetM = 0;
+  const baris = namaTes.map(t => {
+    const pt = torchPeriode[t] || { qty: 0, net: 0 };
+    const mt = torchMtd[t] || { qty: 0, net: 0 };
+    totQtyP += pt.qty || 0; totNetP += pt.net || 0; totQtyM += mt.qty || 0; totNetM += mt.net || 0;
+    return `<tr class="border-t border-blue-200">
+      <td class="py-1.5 text-blue-900">${t}</td>
+      <td class="py-1.5 text-right">${(pt.qty ?? 0).toLocaleString("id-ID")}</td>
+      <td class="py-1.5 text-right">${fmtRp(pt.net)}</td>
+      <td class="py-1.5 text-right">${(mt.qty ?? 0).toLocaleString("id-ID")}</td>
+      <td class="py-1.5 text-right">${fmtRp(mt.net)}</td>
+    </tr>`;
   }).join("");
+  const barisTotal = `<tr class="border-t border-blue-300 font-semibold text-blue-900">
+      <td class="py-1.5">Total</td>
+      <td class="py-1.5 text-right">${totQtyP.toLocaleString("id-ID")}</td>
+      <td class="py-1.5 text-right">${fmtRp(totNetP)}</td>
+      <td class="py-1.5 text-right">${totQtyM.toLocaleString("id-ID")}</td>
+      <td class="py-1.5 text-right">${fmtRp(totNetM)}</td>
+    </tr>`;
+  tbody.innerHTML = baris + barisTotal;
+}
+
+/** Grafik batang Net Revenue Periode/MTD/Bulan Lalu Penuh (revisi 9 poin, poin 9). */
+function renderChartRingkasan(p, mtd, blp) {
+  if (typeof Chart === "undefined") return;
+  if (chartRevenueRingkasan) chartRevenueRingkasan.destroy();
+  chartRevenueRingkasan = new Chart(document.getElementById("rv6ChartRingkasan"), {
+    type: "bar",
+    data: {
+      labels: ["Periode", "MTD", "Bulan Lalu Penuh"],
+      datasets: [{
+        label: "Net Revenue",
+        data: [p.net, mtd.net, blp.net].map(v => Math.round((v || 0) / 1e6 * 10) / 10),
+        backgroundColor: ["#0d9488", "#2563eb", "#94a3b8"],
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+      },
+      scales: { y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } } },
+    },
+  });
+}
+
+/** Grafik donat komposisi Jenis Pasien berdasar Net (Periode) (revisi 9 poin, poin 9). */
+function renderChartSegmen(barisSegmen) {
+  const canvas = document.getElementById("rv6ChartSegmen");
+  if (!canvas || typeof Chart === "undefined" || !barisSegmen || !barisSegmen.length) return;
+  if (chartRevenueSegmen) chartRevenueSegmen.destroy();
+  chartRevenueSegmen = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels: barisSegmen.map(b => b.nama),
+      datasets: [{
+        data: barisSegmen.map(b => b.net || 0),
+        backgroundColor: ["#0d9488", "#2563eb", "#d97706", "#7c3aed", "#64748b"],
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: c => c.label + ": Rp " + (c.parsed || 0).toLocaleString("id-ID") } },
+      },
+    },
+  });
 }
 
 /**
