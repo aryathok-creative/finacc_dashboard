@@ -2506,12 +2506,21 @@ function renderTrenRevenue(tren) {
   const warnaTitik = tren.map(t => (t.hari && t.hari > 1) ? "#d97706" : "#0d9488");
   const ukuranTitik = tren.map(t => (t.hari && t.hari > 1) ? 8 : 3);
   const bentukTitik = tren.map(t => (t.hari && t.hari > 1) ? "rectRot" : "circle");
+  // Label sumbu-X untuk titik gabungan: tampilkan RENTANG langsung di sumbu
+  // ("31 Jul–2 Agu"), bukan cuma tanggal akhir + rentang disembunyikan di
+  // tooltip — Doel melaporkan rentang tanggal acuan transaksi harus
+  // kelihatan tanpa perlu hover (revisi atas mockup-p6-ytd-segmen-tren.html,
+  // 4 Agu 2026). Titik 1-hari & titik yang `tglAwal`-nya belum ada (snapshot
+  // lama belum migrasi) tetap pakai tanggal tunggal seperti sebelumnya.
+  const labelSumbu = tren.map(t => (t.hari && t.hari > 1 && t.tglAwal)
+    ? fmtTglPendek(t.tglAwal) + "–" + fmtTglPendek(t.tanggal)
+    : fmtTglPendek(t.tanggal));
 
   if (chartRevenueTren) chartRevenueTren.destroy();
   chartRevenueTren = new Chart(document.getElementById("rv6ChartTren"), {
     type: "line",
     data: {
-      labels: tren.map(t => fmtTglPendek(t.tanggal)),
+      labels: labelSumbu,
       datasets: [{
         label: "Net Revenue",
         data: tren.map(t => Math.round(t.net / 1e6 * 10) / 10),
