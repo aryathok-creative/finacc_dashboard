@@ -57,9 +57,13 @@
         </div>
       </div>
       <p id="loginError" class="text-xs text-red-600 hidden"></p>
-      <button onclick="handleLogin()"
-        class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5 transition">
-        Masuk
+      <button id="btnLoginMasuk" onclick="handleLogin()"
+        class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        <svg id="loginSpinner" class="hidden animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span id="loginTombolTeks">Masuk</span>
       </button>
     </div>
   </div>
@@ -213,6 +217,7 @@
       <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
         <p class="text-sm font-medium text-slate-700 mb-1">Tren Yield per Segmen 2026 (ribu Rp / transaksi)</p>
         <p class="text-xs text-slate-400 mb-2">Menunjukkan pergeseran mix tarif antar segmen dari bulan ke bulan</p>
+        <p id="yieldTrendCatatan" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3"></p>
         <div id="wrapYield"><canvas id="chartYield" height="90"></canvas></div>
       </div>
     </div>
@@ -396,6 +401,7 @@
             <th class="text-left font-normal pb-2">Metrik</th>
             <th class="text-right font-normal pb-2">Periode</th>
             <th class="text-right font-normal pb-2">MTD</th>
+            <th class="text-right font-normal pb-2">YTD</th>
           </tr></thead>
           <tbody id="rv6TabelARA"></tbody>
         </table>
@@ -415,6 +421,8 @@
             <th class="text-right font-normal pb-2">Net Periode</th>
             <th class="text-right font-normal pb-2">Qty MTD</th>
             <th class="text-right font-normal pb-2">Net MTD</th>
+            <th class="text-right font-normal pb-2">Qty YTD</th>
+            <th class="text-right font-normal pb-2">Net YTD</th>
           </tr></thead>
           <tbody id="rv6TabelTorch"></tbody>
         </table>
@@ -812,6 +820,41 @@ let chartRevenueRingkasan = null; // grafik batang Ringkasan Periode/MTD/Bulan L
 let chartRevenueSegmen = null;    // grafik donat komposisi Jenis Pasien (revisi 9 poin, poin 9)
 
 /* ============================================================
+ * SESI LOGIN — bertahan lewat refresh (permintaan Doel 4 Agu, poin 5:
+ * "kalau refresh diarahkan ke halaman login lagi, sebaiknya tetap di tab
+ * yang terakhir dibuka"). Disimpan di localStorage (aplikasi web sungguhan
+ * di domain sendiri, BUKAN artifact Claude — localStorage aman dipakai di
+ * sini). Token TETAP divalidasi server tiap request lewat `_auth_()` di
+ * Code.gs (TTL cache 6 jam) — localStorage cuma menyimpan salinannya di
+ * sisi klien supaya tidak perlu login ulang tiap refresh; kalau token sudah
+ * kedaluwarsa di server, permintaan data pertama akan gagal dengan
+ * `needLogin` dan sesi tersimpan otomatis dihapus (lihat `_post`).
+ * ============================================================ */
+const KUNCI_SESI = "pmuFinanceDashboardSesi";
+const SESI_MAKS_JAM = 6; // cermin SESSION_TTL di Code.gs (21600 detik)
+
+function _simpanSesi() {
+  if (!authToken || !currentUser) return;
+  try {
+    localStorage.setItem(KUNCI_SESI, JSON.stringify({ token: authToken, user: currentUser, page, waktu: Date.now() }));
+  } catch (e) { /* localStorage penuh/diblokir browser — sesi cukup tidak bertahan refresh, bukan error fatal */ }
+}
+function _hapusSesi() {
+  try { localStorage.removeItem(KUNCI_SESI); } catch (e) { /* diamkan */ }
+}
+function _muatSesiTersimpan() {
+  try {
+    const mentah = localStorage.getItem(KUNCI_SESI);
+    if (!mentah) return null;
+    const s = JSON.parse(mentah);
+    if (!s || !s.token || !s.user) return null;
+    const jamBerlalu = (Date.now() - (s.waktu || 0)) / 3600000;
+    if (jamBerlalu > SESI_MAKS_JAM) { _hapusSesi(); return null; } // sudah pasti kedaluwarsa di server, jangan repot coba
+    return s;
+  } catch (e) { return null; } // JSON rusak/localStorage bermasalah — perlakukan seperti tidak ada sesi
+}
+
+/* ============================================================
  * LAPISAN API
  * ============================================================ */
 // Hitungan request yang sedang berjalan — dipakai indikator "Memuat data…"
@@ -833,7 +876,15 @@ async function _post(payload) {
       body: JSON.stringify(payload),
     });
     const j = await res.json();
-    if (j && j.needLogin) { alert("Sesi berakhir, silakan login ulang."); location.reload(); throw new Error("Sesi berakhir"); }
+    if (j && j.needLogin) {
+      // Sesi tersimpan (localStorage) sudah tidak berlaku di server —
+      // WAJIB dihapus dulu SEBELUM reload, kalau tidak halaman akan
+      // reload lalu langsung coba pakai token basi yang sama lagi (loop).
+      _hapusSesi();
+      alert("Sesi berakhir, silakan login ulang.");
+      location.reload();
+      throw new Error("Sesi berakhir");
+    }
     return j;
   } finally {
     _jumlahRequestJalan = Math.max(0, _jumlahRequestJalan - 1);
@@ -893,18 +944,40 @@ async function handleLogin() {
   const errEl = document.getElementById("loginError");
   errEl.classList.add("hidden");
 
-  const j = await apiPost({ action: "checkLogin", email, password });
-  if (!j.ok) { errEl.textContent = j.error || "Login gagal"; errEl.classList.remove("hidden"); return; }
+  // Indikator proses (permintaan Doel 4 Agu — poin 4: tombol "Masuk" diam
+  // lama tanpa tanda apa pun bikin terlihat seperti hang). Tombol dikunci +
+  // teks & spinner berganti selama menunggu server, DIKEMBALIKAN di finally
+  // supaya tetap pulih walau terjadi error jaringan/exception tak terduga.
+  const tombol = document.getElementById("btnLoginMasuk");
+  const spinner = document.getElementById("loginSpinner");
+  const teks = document.getElementById("loginTombolTeks");
+  tombol.disabled = true;
+  spinner.classList.remove("hidden");
+  teks.textContent = "Sedang memeriksa data server…";
 
-  authToken = j.token;
-  currentUser = j.user;
+  try {
+    const j = await apiPost({ action: "checkLogin", email, password });
+    if (!j.ok) { errEl.textContent = j.error || "Login gagal"; errEl.classList.remove("hidden"); return; }
 
-  if (currentUser.mustChange) {
-    document.getElementById("mustChangeModal").classList.remove("hidden");
-    document.getElementById("mustChangeModal").classList.add("flex");
-    return;
+    authToken = j.token;
+    currentUser = j.user;
+
+    if (currentUser.mustChange) {
+      document.getElementById("mustChangeModal").classList.remove("hidden");
+      document.getElementById("mustChangeModal").classList.add("flex");
+      return;
+    }
+    page = "p1"; // login baru (bukan pulih dari refresh) -> mulai dari halaman pertama, bukan tab sesi lama siapa pun
+    _simpanSesi();
+    showDashboard();
+  } catch (e) {
+    errEl.textContent = "Gagal menghubungi server. Coba lagi.";
+    errEl.classList.remove("hidden");
+  } finally {
+    tombol.disabled = false;
+    spinner.classList.add("hidden");
+    teks.textContent = "Masuk";
   }
-  showDashboard();
 }
 
 async function handleGantiPassword() {
@@ -917,12 +990,17 @@ async function handleGantiPassword() {
   if (!j.ok) return alert(j.error || "Gagal mengganti password.");
   document.getElementById("mustChangeModal").classList.add("hidden");
   document.getElementById("mustChangeModal").classList.remove("flex");
+  page = "p1";
+  _simpanSesi();
   showDashboard();
 }
 
 function handleLogout() {
   // Semua cache dikosongkan supaya data user sebelumnya tidak terbawa
-  // kalau ada orang lain login di komputer yang sama.
+  // kalau ada orang lain login di komputer yang sama. Sesi tersimpan
+  // (localStorage) WAJIB ikut dihapus di sini juga — kalau tidak, refresh
+  // setelah logout akan otomatis login lagi sebagai user sebelumnya.
+  _hapusSesi();
   authToken = null; currentUser = null; page = "p1";
   arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null; revenueCache = null;
   document.getElementById("dashboardScreen").classList.add("hidden");
@@ -1135,6 +1213,7 @@ function switchPage(p) {
     p = halamanBoleh[0].id;
   }
   page = p;
+  _simpanSesi(); // ingat tab terakhir supaya tidak balik ke p1/login saat refresh (permintaan Doel 4 Agu, poin 5)
   const aktif = PAGES.find(x => x.id === p) || PAGES[0];
 
   PAGES.forEach(x => {
@@ -1405,6 +1484,34 @@ function renderVolume(c) {
         <td class="text-right ${low ? 'font-semibold text-red-700' : 'font-medium'}">${x.yield === null ? "—" : "Rp " + Math.round(x.yield).toLocaleString("id-ID") + " rb"}</td>
       </tr>`;
     }).join("");
+
+  // Catatan beda sumber tabel vs grafik tren di bawahnya (permintaan Doel
+  // 4 Agu 2026): tabel "Yield" di atas mengikuti PERIODE YANG DIPILIH user
+  // (selMonths, biasanya periode laporan keuangan yang SUDAH resmi
+  // ditutup — mis. Juni). Grafik "Tren Yield per Segmen" TIDAK menyaring
+  // apa pun — selalu menampilkan SEMUA bulan yang ada di sumber datanya
+  // (`volSeries`, dibaca LANGSUNG/live dari tab volume, TERMASUK bulan
+  // berjalan yang belum ditutup). Kalau bulan terakhir di data live itu
+  // TIDAK termasuk dalam periode yang dipilih user, keduanya sedang
+  // menampilkan "per tanggal" yang beda — itu WAJIB disampaikan eksplisit,
+  // bukan dibiarkan user menyimpulkan sendiri kenapa grafik "lebih jauh"
+  // dari tabel di sebelahnya.
+  const catatanYield = document.getElementById("yieldTrendCatatan");
+  if (volSeries && volSeries.length) {
+    const bulanTerakhirLive = volSeries[volSeries.length - 1].bulan;
+    const termasukDipilih = selMonths.includes(bulanTerakhirLive);
+    if (!termasukDipilih) {
+      catatanYield.innerHTML = `<b>Data grafik ini sampai dengan ${bulanTerakhirLive}</b> (data live/berjalan, ` +
+        `belum resmi ditutup) — <b>beda</b> dari tabel "Yield" &amp; kartu KPI di atas yang memakai periode ` +
+        `laporan resmi yang dipilih (<b>${c.dispLabel}</b>). Angka bulan berjalan di grafik ini masih bisa ` +
+        `berubah sampai periode itu resmi ditutup.`;
+      catatanYield.classList.remove("hidden");
+    } else {
+      catatanYield.classList.add("hidden");
+    }
+  } else {
+    catatanYield.classList.add("hidden");
+  }
 
   renderYieldChart();
 }
@@ -2721,7 +2828,12 @@ function renderKontributorTerbesar(dimPengirim, totalMtd, daftarAnomali) {
  */
 function renderHighlightARA(ringkasan) {
   const p = ringkasan.periode, m = ringkasan.mtd;
+  // `ytd` sudah ada di kontrak ringkasan sejak revisi Net-YTD (4 Agu 2026,
+  // sama seperti periode/mtd) — kalau field ini tidak ada sama sekali berarti
+  // snapshot BASI (ditulis sebelum revisi ini), bukan berarti nilainya 0.
+  const y = ringkasan.ytd || {};
   const dataBaruAda = p.hariAktifARA !== undefined && m.hariAktifARA !== undefined;
+  const ytdAda = ringkasan.ytd !== undefined && y.hariAktifARA !== undefined;
   const rataAktif = (netARA, hariAktif) => hariAktif > 0 ? fmtRp(netARA / hariAktif) : fmtRp(0);
   const hariAktifTeks = (hariAktif, jumlahHari) =>
     hariAktif === undefined ? "—" : hariAktif + " dari " + jumlahHari + " hari";
@@ -2732,21 +2844,24 @@ function renderHighlightARA(ringkasan) {
       <td class="py-1.5 text-amber-800">Revenue Net</td>
       <td class="py-1.5 text-right">${fmtRp(p.netARA)}</td>
       <td class="py-1.5 text-right">${fmtRp(m.netARA)}</td>
+      <td class="py-1.5 text-right">${ytdAda ? fmtRp(y.netARA) : "—"}</td>
     </tr>
     <tr class="border-t border-amber-200">
       <td class="py-1.5 text-amber-800">Hari Aktif</td>
       <td class="py-1.5 text-right">${hariAktifTeks(p.hariAktifARA, p.jumlahHari)}</td>
       <td class="py-1.5 text-right">${hariAktifTeks(m.hariAktifARA, m.jumlahHari)}</td>
+      <td class="py-1.5 text-right">${ytdAda ? hariAktifTeks(y.hariAktifARA, y.jumlahHari) : "—"}</td>
     </tr>
     <tr class="border-t border-amber-200 font-semibold text-amber-900">
       <td class="py-1.5">Rata-rata per Hari Aktif</td>
       <td class="py-1.5 text-right">${rataAktifTeks(p.netARA, p.hariAktifARA)}</td>
       <td class="py-1.5 text-right">${rataAktifTeks(m.netARA, m.hariAktifARA)}</td>
+      <td class="py-1.5 text-right">${ytdAda ? rataAktifTeks(y.netARA, y.hariAktifARA) : "—"}</td>
     </tr>`;
 
   const ket = document.getElementById("rv6ARASnapshotLamaKet");
-  if (!dataBaruAda) {
-    ket.textContent = "Baris \"Hari Aktif\" / \"Rata-rata per Hari Aktif\" belum bisa dihitung — snapshot ini ditulis SEBELUM field ini ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+  if (!dataBaruAda || !ytdAda) {
+    ket.textContent = "Sebagian kolom (Hari Aktif / Rata-rata per Hari Aktif / YTD) belum bisa dihitung — snapshot ini ditulis SEBELUM field itu ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
     ket.classList.remove("hidden");
   } else ket.classList.add("hidden");
 }
@@ -2772,26 +2887,35 @@ function renderHighlightTorch(ringkasan) {
   const torchPeriode = ringkasan.torch || {};
   const torchMtdAda = ringkasan.torchMTD !== undefined;
   const torchMtd = ringkasan.torchMTD || {};
+  // `torchYTD` ditambahkan 2026-08-04 — pola SAMA PERSIS dgn torchMTD:
+  // field hilang total (bukan {}) berarti snapshot BASI, ditulis sebelum
+  // field ini ada.
+  const torchYtdAda = ringkasan.torchYTD !== undefined;
+  const torchYtd = ringkasan.torchYTD || {};
   const namaTes = Object.keys(torchPeriode).sort();
   const tbody = document.getElementById("rv6TabelTorch");
   const ket = document.getElementById("rv6TorchSnapshotLamaKet");
   if (!namaTes.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-3 text-center text-slate-400">Tidak ada kolom TORCH ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-slate-400">Tidak ada kolom TORCH ditemukan.</td></tr>`;
     ket.classList.add("hidden");
     return;
   }
-  let totQtyP = 0, totNetP = 0, totQtyM = 0, totNetM = 0;
+  let totQtyP = 0, totNetP = 0, totQtyM = 0, totNetM = 0, totQtyY = 0, totNetY = 0;
   const baris = namaTes.map(t => {
     const pt = torchPeriode[t] || { qty: 0, net: 0 };
     const mt = torchMtd[t] || { qty: 0, net: 0 };
+    const yt = torchYtd[t] || { qty: 0, net: 0 };
     totQtyP += pt.qty || 0; totNetP += pt.net || 0;
     if (torchMtdAda) { totQtyM += mt.qty || 0; totNetM += mt.net || 0; }
+    if (torchYtdAda) { totQtyY += yt.qty || 0; totNetY += yt.net || 0; }
     return `<tr class="border-t border-blue-200">
       <td class="py-1.5 text-blue-900">${t}</td>
       <td class="py-1.5 text-right">${(pt.qty ?? 0).toLocaleString("id-ID")}</td>
       <td class="py-1.5 text-right">${fmtRp(pt.net)}</td>
       <td class="py-1.5 text-right">${torchMtdAda ? (mt.qty ?? 0).toLocaleString("id-ID") : "—"}</td>
       <td class="py-1.5 text-right">${torchMtdAda ? fmtRp(mt.net) : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? (yt.qty ?? 0).toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? fmtRp(yt.net) : "—"}</td>
     </tr>`;
   }).join("");
   const barisTotal = `<tr class="border-t border-blue-300 font-semibold text-blue-900">
@@ -2800,11 +2924,13 @@ function renderHighlightTorch(ringkasan) {
       <td class="py-1.5 text-right">${fmtRp(totNetP)}</td>
       <td class="py-1.5 text-right">${torchMtdAda ? totQtyM.toLocaleString("id-ID") : "—"}</td>
       <td class="py-1.5 text-right">${torchMtdAda ? fmtRp(totNetM) : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? totQtyY.toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? fmtRp(totNetY) : "—"}</td>
     </tr>`;
   tbody.innerHTML = baris + barisTotal;
 
-  if (!torchMtdAda) {
-    ket.textContent = "Kolom MTD belum bisa dihitung — snapshot ini ditulis SEBELUM field ini ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+  if (!torchMtdAda || !torchYtdAda) {
+    ket.textContent = "Sebagian kolom (MTD / YTD) belum bisa dihitung — snapshot ini ditulis SEBELUM field itu ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
     ket.classList.remove("hidden");
   } else ket.classList.add("hidden");
 }
@@ -2993,6 +3119,25 @@ document.getElementById("modeTabs").addEventListener("click", e => {
   render();
 });
 document.getElementById("periodSelect").addEventListener("change", e => { sel = +e.target.value; render(); });
+
+/* ============================================================
+ * PULIHKAN SESI SAAT HALAMAN DIMUAT (refresh/buka tab baru) — poin 5,
+ * permintaan Doel 4 Agu. Kalau ada sesi tersimpan yang belum kedaluwarsa
+ * (client-side check saja, lihat SESI_MAKS_JAM), langsung buka dashboard
+ * di tab TERAKHIR yang dibuka user, lewati layar login. Token tetap
+ * divalidasi server di request data pertama — kalau ternyata sudah tidak
+ * berlaku (di-logout paksa admin, TTL server habis lebih awal, dst.),
+ * `_post` akan menangkap `needLogin`, menghapus sesi, dan reload otomatis
+ * ke layar login bersih (lihat `_post`).
+ * ============================================================ */
+(function pulihkanSesi() {
+  const s = _muatSesiTersimpan();
+  if (!s) return;
+  authToken = s.token;
+  currentUser = s.user;
+  page = s.page || "p1";
+  showDashboard();
+})();
 </script>
 </body>
 </html>
