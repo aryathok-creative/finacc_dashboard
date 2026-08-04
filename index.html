@@ -47,9 +47,13 @@
         </div>
       </div>
       <p id="loginError" class="text-xs text-red-600 hidden"></p>
-      <button onclick="handleLogin()"
-        class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5 transition">
-        Masuk
+      <button id="btnLoginMasuk" onclick="handleLogin()"
+        class="w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg py-2.5 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        <svg id="loginSpinner" class="hidden animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span id="loginTombolTeks">Masuk</span>
       </button>
     </div>
   </div>
@@ -91,6 +95,18 @@
       <span id="userBadge" class="text-xs text-slate-500"></span>
       <button onclick="handleLogout()" class="text-xs text-slate-500 hover:text-red-600 border border-slate-200 rounded-lg px-3 py-1.5">Keluar</button>
     </div>
+  </div>
+
+  <!-- Indikator "sedang memuat" — global, muncul tiap ada request ke server
+       sedang berjalan (dipasang di lapisan _post, bukan per halaman), supaya
+       pindah tab tidak terlihat seperti "hang" padahal cuma menunggu server
+       (permintaan Doel 4 Agu 2026, setelah laporan loading lama di p6). -->
+  <div id="globalLoadingBar" class="hidden mb-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+    <svg class="animate-spin h-3.5 w-3.5 text-teal-600" viewBox="0 0 24 24" fill="none">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+    </svg>
+    <span>Memuat data dari server…</span>
   </div>
 
   <!-- NAVIGASI HALAMAN -->
@@ -191,6 +207,7 @@
       <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
         <p class="text-sm font-medium text-slate-700 mb-1">Tren Yield per Segmen 2026 (ribu Rp / transaksi)</p>
         <p class="text-xs text-slate-400 mb-2">Menunjukkan pergeseran mix tarif antar segmen dari bulan ke bulan</p>
+        <p id="yieldTrendCatatan" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3"></p>
         <div id="wrapYield"><canvas id="chartYield" height="90"></canvas></div>
       </div>
     </div>
@@ -248,6 +265,167 @@
       <p class="text-sm font-medium text-slate-700 mb-2">Tren DSO — Day Sales Outstanding (hari)</p>
       <div id="wrapDso"><canvas id="chartDso" height="80"></canvas></div>
       <p class="text-xs text-slate-400 mt-2">DSO = rata-rata umur piutang. Makin rendah makin cepat piutang tertagih.</p>
+    </div>
+  </div>
+
+  <!-- ============ HALAMAN 6: PENJUALAN HARIAN (REVENUE) ============ -->
+  <div id="page6Panel" class="hidden">
+
+    <div id="page6Kosong" class="hidden bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500"></div>
+
+    <div id="page6Isi" class="hidden">
+      <!-- banner data belum diperbarui (modul-harian §2.1, "berlaku sama untuk revenue harian") —
+           warna & ambang SENGAJA sama seperti p5 (Tahap 11k), lihat rv6Banner di JS -->
+      <div id="rv6Banner" class="hidden rounded-xl px-4 py-3 mb-4 text-sm font-medium"></div>
+
+      <!-- "Tanggal acuan" / "Tanggal pelaporan" — pengganti "Data per X" lama
+           (disetujui Doel 4 Agu 2026 lewat mockup-p6-tanggal-acuan.html).
+           Catatan periode >1 hari dibangun dari `j.periode.sebab` — ALASAN
+           ASLI dari modul kalender (weekend/libur nasional per tanggalnya,
+           bukan tebakan client-side), sudah ada di backend sejak Tahap 12a,
+           cuma belum pernah ditampilkan sampai sekarang. -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm text-slate-700"><span class="text-slate-400">Tanggal acuan</span> : <span id="rv6TanggalAcuan" class="font-medium">—</span></p>
+        <p class="text-sm text-slate-700 mt-0.5"><span class="text-slate-400">Tanggal pelaporan</span> : <span id="rv6TanggalPelaporan" class="font-medium">—</span></p>
+        <p id="rv6WaktuSnapshotKet" class="text-[11px] text-slate-400 mt-1"></p>
+        <p id="rv6CatatanPeriode" class="hidden text-xs mt-2 rounded-lg px-3 py-2"></p>
+      </div>
+
+      <!-- KPI cards — urutan pakem laporan lama (revisi 9 poin, poin 1):
+           Revenue Kotor, Discount, Revenue Bersih, Jumlah Nota. Label
+           disetujui Doel 4 Agu 2026 (Opsi A: "Revenue" dipakai konsisten,
+           "Diskon" diganti "Discount" supaya seragam dgn Gross/Net). Tiap
+           kartu diberi keterangan di bawah angka, sama seperti pola kartu
+           di "Ringkasan Eksekutif" (p1) — sebagian statis, sebagian
+           dihitung dari data. -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
+          <p class="text-xs text-amber-700">Revenue Kotor</p>
+          <p id="rv6Gross" class="text-xl font-semibold text-amber-800 mt-1">—</p>
+          <p class="text-[11px] text-amber-600 mt-0.5">Sebelum diskon</p>
+        </div>
+        <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <p class="text-xs text-purple-700">Discount</p>
+          <p id="rv6Diskon" class="text-xl font-semibold text-purple-800 mt-1">—</p>
+          <p id="rv6DiskonKet" class="text-[11px] text-purple-600 mt-0.5"></p>
+        </div>
+        <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
+          <p class="text-xs text-teal-700">Revenue Bersih — Periode</p>
+          <p id="rv6Net" class="text-xl font-semibold text-teal-800 mt-1">—</p>
+          <p id="rv6NetRata" class="text-[11px] text-teal-600 mt-0.5"></p>
+        </div>
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p class="text-xs text-blue-700">Jumlah Nota</p>
+          <p id="rv6Nota" class="text-xl font-semibold text-blue-800 mt-1">—</p>
+          <p id="rv6NotaKet" class="text-[11px] text-blue-600 mt-0.5"></p>
+        </div>
+      </div>
+
+      <!-- grafik tren net revenue (beberapa snapshot terakhir) -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-1">Tren Net Revenue Harian</p>
+        <p class="text-xs text-slate-500 mb-3">Titik ◆ oranye = snapshot yang mewakili LEBIH dari 1 hari (akhir pekan/hari libur digabung) — bukan lonjakan 1 hari. Arahkan kursor ke titik untuk rincian rentang tanggal.</p>
+        <div id="rv6TrenWrap" class="relative" style="height:220px">
+          <canvas id="rv6ChartTren"></canvas>
+        </div>
+        <p id="rv6TrenKosong" class="hidden text-xs text-slate-400 text-center py-8"></p>
+      </div>
+
+      <!-- ringkasan 4 kolom periode (modul-harian §6): Periode / MTD / Bulan Lalu Penuh / YTD
+           + baris "Growth" (revisi 9 poin, poin 2) + grafik batang perbandingan (poin 9).
+           Kolom YTD ditambahkan 2026-08-04 (revisi lanjutan) — baris Growth-nya
+           SENGAJA n/a, belum ada kesepakatan baseline pembanding (lihat mockup). -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Ringkasan</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">Pos</th>
+            <th class="text-right font-normal pb-2" id="rv6ColPeriode">Periode</th>
+            <th class="text-right font-normal pb-2" id="rv6ColMtd">MTD</th>
+            <th class="text-right font-normal pb-2" id="rv6ColBulanLalu">Bulan Lalu</th>
+            <th class="text-right font-normal pb-2" id="rv6ColYtd">YTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelRingkasan"></tbody>
+        </table>
+        <p id="rv6RataKet" class="hidden text-xs text-slate-400 mt-2"></p>
+        <p id="rv6GrowthKet" class="text-xs text-slate-400 mt-2"></p>
+        <div id="rv6AnomaliRingkasan" class="space-y-1.5 mt-2"></div>
+        <div id="rv6ChartRingkasanWrap" class="relative mt-4" style="height:200px">
+          <canvas id="rv6ChartRingkasan"></canvas>
+        </div>
+      </div>
+
+      <!-- dimensi (segmen/departemen/unit) — DIRENDER LEWAT PERULANGAN
+           (PRD §7: "tabel dan drill-down dibuat dengan perulangan atas dimensi,
+           bukan menulis empat tabel terpisah"). Menambah dimensi baru di backend
+           = kartu baru muncul otomatis di sini, tanpa ubah HTML. "Pengirim" TIDAK
+           lagi lewat sini (revisi 9 poin, poin 6) — diganti kartu "Kontributor
+           Terbesar (MTD)" khusus di bawah, pola pakem laporan lama. Tiap kartu
+           dapat baris Total (poin 3-5) + anomali bisnis terkait (poin 7). -->
+      <div id="rv6DimensiWrap" class="space-y-4 mb-5"></div>
+
+      <!-- Kontributor Terbesar (MTD) — pengganti breakdown pengirim per segmen
+           (revisi 9 poin, poin 6): satu daftar gabungan top pengirim, sama
+           persis pola "Kontributor Terbesar (MTD)" di laporan terjadwal lama,
+           bersumber dari dimensi.pengirim (Pengirim_Harian) yang sudah dibaca. -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Kontributor Terbesar (MTD) <span class="text-xs font-normal text-slate-400">— Top 8 Pengirim</span></p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">#</th>
+            <th class="text-left font-normal pb-2">Pengirim</th>
+            <th class="text-right font-normal pb-2">Net MTD</th>
+            <th class="text-right font-normal pb-2">% dari MTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelKontributor"></tbody>
+        </table>
+        <div id="rv6AnomaliKontributor" class="space-y-1.5 mt-2"></div>
+      </div>
+
+      <!-- Highlight Departemen Anestesi (ARA) — poin 8, pola pakem laporan lama:
+           selalu tampil walau Rp 0, baris Rata-rata per Hari Aktif ditebalkan. -->
+      <div class="bg-amber-50/40 border border-amber-200 border-l-4 border-l-amber-600 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-amber-900 mb-2">Highlight Departemen Anestesi (ARA)</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-amber-700/70 border-b border-amber-200">
+            <th class="text-left font-normal pb-2">Metrik</th>
+            <th class="text-right font-normal pb-2">Periode</th>
+            <th class="text-right font-normal pb-2">MTD</th>
+            <th class="text-right font-normal pb-2">YTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelARA"></tbody>
+        </table>
+        <p id="rv6ARASnapshotLamaKet" class="hidden text-[11px] text-amber-700/80 mt-2"></p>
+      </div>
+
+      <!-- Highlight Panel TORCH — poin 8, pola pakem laporan lama: qty & net
+           Periode + MTD per test (nilai 0 tetap tampil) + baris Total. Nama
+           test DITEMUKAN OTOMATIS oleh backend (§0.2 guard IgM/IgG), bukan
+           di-hardcode di sini. -->
+      <div class="bg-blue-50/40 border border-blue-200 border-l-4 border-l-blue-600 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-blue-900 mb-2">Highlight Panel TORCH</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-blue-700/70 border-b border-blue-200">
+            <th class="text-left font-normal pb-2">Test</th>
+            <th class="text-right font-normal pb-2">Qty Periode</th>
+            <th class="text-right font-normal pb-2">Net Periode</th>
+            <th class="text-right font-normal pb-2">Qty MTD</th>
+            <th class="text-right font-normal pb-2">Net MTD</th>
+            <th class="text-right font-normal pb-2">Qty YTD</th>
+            <th class="text-right font-normal pb-2">Net YTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelTorch"></tbody>
+        </table>
+        <p id="rv6TorchSnapshotLamaKet" class="hidden text-[11px] text-blue-700/80 mt-2"></p>
+      </div>
+
+      <!-- pipa data — HANYA staf/admin (modul-harian §8), backend sudah menyaring
+           tapi elemen tetap disembunyikan default sampai datanya benar-benar ada -->
+      <div id="rv6PipaDataBox" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <p class="text-sm font-medium text-slate-700 mb-2">Temuan Pipa Data <span class="text-xs font-normal text-slate-400">(staf/admin saja)</span></p>
+        <div id="rv6PipaData" class="space-y-1"></div>
+        <p id="rv6TorchKet" class="text-xs text-slate-400 mt-2"></p>
+      </div>
     </div>
   </div>
 
@@ -605,19 +783,82 @@ let arusKasCache = null;     // data halaman 5 — Arus Kas Harian (di-fetch saa
 let chartArusKasTren = null; // grafik tren Total Saldo Akhir (Tahap 11o)
 let chartRincianInflow = null, chartRincianOutflow = null; // grafik rincian pos (Tahap 11o)
 let rincianPeriodeAktif = "hariIni"; // hariIni | mtd | bulanLalu — dipakai KEDUA grafik rincian
+let revenueCache = null;     // data halaman 6 — Penjualan Harian (Tahap 12)
+let chartRevenueTren = null; // grafik tren Net Revenue harian
+let chartRevenueRingkasan = null; // grafik batang Ringkasan Periode/MTD/Bulan Lalu (revisi 9 poin, poin 9)
+let chartRevenueSegmen = null;    // grafik donat komposisi Jenis Pasien (revisi 9 poin, poin 9)
+
+/* ============================================================
+ * SESI LOGIN — bertahan lewat refresh (permintaan Doel 4 Agu, poin 5:
+ * "kalau refresh diarahkan ke halaman login lagi, sebaiknya tetap di tab
+ * yang terakhir dibuka"). Disimpan di localStorage (aplikasi web sungguhan
+ * di domain sendiri, BUKAN artifact Claude — localStorage aman dipakai di
+ * sini). Token TETAP divalidasi server tiap request lewat `_auth_()` di
+ * Code.gs (TTL cache 6 jam) — localStorage cuma menyimpan salinannya di
+ * sisi klien supaya tidak perlu login ulang tiap refresh; kalau token sudah
+ * kedaluwarsa di server, permintaan data pertama akan gagal dengan
+ * `needLogin` dan sesi tersimpan otomatis dihapus (lihat `_post`).
+ * ============================================================ */
+const KUNCI_SESI = "pmuFinanceDashboardSesi";
+const SESI_MAKS_JAM = 6; // cermin SESSION_TTL di Code.gs (21600 detik)
+
+function _simpanSesi() {
+  if (!authToken || !currentUser) return;
+  try {
+    localStorage.setItem(KUNCI_SESI, JSON.stringify({ token: authToken, user: currentUser, page, waktu: Date.now() }));
+  } catch (e) { /* localStorage penuh/diblokir browser — sesi cukup tidak bertahan refresh, bukan error fatal */ }
+}
+function _hapusSesi() {
+  try { localStorage.removeItem(KUNCI_SESI); } catch (e) { /* diamkan */ }
+}
+function _muatSesiTersimpan() {
+  try {
+    const mentah = localStorage.getItem(KUNCI_SESI);
+    if (!mentah) return null;
+    const s = JSON.parse(mentah);
+    if (!s || !s.token || !s.user) return null;
+    const jamBerlalu = (Date.now() - (s.waktu || 0)) / 3600000;
+    if (jamBerlalu > SESI_MAKS_JAM) { _hapusSesi(); return null; } // sudah pasti kedaluwarsa di server, jangan repot coba
+    return s;
+  } catch (e) { return null; } // JSON rusak/localStorage bermasalah — perlakukan seperti tidak ada sesi
+}
 
 /* ============================================================
  * LAPISAN API
  * ============================================================ */
+// Hitungan request yang sedang berjalan — dipakai indikator "Memuat data…"
+// (globalLoadingBar). Pakai HITUNGAN, bukan boolean, supaya kalau ada 2
+// request tumpang tindih, indikator tidak hilang begitu request PERTAMA
+// selesai padahal yang kedua masih jalan.
+let _jumlahRequestJalan = 0;
+function _setLoadingBar(tampil) {
+  const bar = document.getElementById("globalLoadingBar");
+  if (bar) bar.classList.toggle("hidden", !tampil);
+}
 async function _post(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-  });
-  const j = await res.json();
-  if (j && j.needLogin) { alert("Sesi berakhir, silakan login ulang."); location.reload(); throw new Error("Sesi berakhir"); }
-  return j;
+  _jumlahRequestJalan++;
+  _setLoadingBar(true);
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    });
+    const j = await res.json();
+    if (j && j.needLogin) {
+      // Sesi tersimpan (localStorage) sudah tidak berlaku di server —
+      // WAJIB dihapus dulu SEBELUM reload, kalau tidak halaman akan
+      // reload lalu langsung coba pakai token basi yang sama lagi (loop).
+      _hapusSesi();
+      alert("Sesi berakhir, silakan login ulang.");
+      location.reload();
+      throw new Error("Sesi berakhir");
+    }
+    return j;
+  } finally {
+    _jumlahRequestJalan = Math.max(0, _jumlahRequestJalan - 1);
+    if (_jumlahRequestJalan === 0) _setLoadingBar(false);
+  }
 }
 async function apiPost(payload) { payload.token = authToken; return _post(payload); }
 
@@ -672,18 +913,40 @@ async function handleLogin() {
   const errEl = document.getElementById("loginError");
   errEl.classList.add("hidden");
 
-  const j = await apiPost({ action: "checkLogin", email, password });
-  if (!j.ok) { errEl.textContent = j.error || "Login gagal"; errEl.classList.remove("hidden"); return; }
+  // Indikator proses (permintaan Doel 4 Agu — poin 4: tombol "Masuk" diam
+  // lama tanpa tanda apa pun bikin terlihat seperti hang). Tombol dikunci +
+  // teks & spinner berganti selama menunggu server, DIKEMBALIKAN di finally
+  // supaya tetap pulih walau terjadi error jaringan/exception tak terduga.
+  const tombol = document.getElementById("btnLoginMasuk");
+  const spinner = document.getElementById("loginSpinner");
+  const teks = document.getElementById("loginTombolTeks");
+  tombol.disabled = true;
+  spinner.classList.remove("hidden");
+  teks.textContent = "Sedang memeriksa data server…";
 
-  authToken = j.token;
-  currentUser = j.user;
+  try {
+    const j = await apiPost({ action: "checkLogin", email, password });
+    if (!j.ok) { errEl.textContent = j.error || "Login gagal"; errEl.classList.remove("hidden"); return; }
 
-  if (currentUser.mustChange) {
-    document.getElementById("mustChangeModal").classList.remove("hidden");
-    document.getElementById("mustChangeModal").classList.add("flex");
-    return;
+    authToken = j.token;
+    currentUser = j.user;
+
+    if (currentUser.mustChange) {
+      document.getElementById("mustChangeModal").classList.remove("hidden");
+      document.getElementById("mustChangeModal").classList.add("flex");
+      return;
+    }
+    page = "p1"; // login baru (bukan pulih dari refresh) -> mulai dari halaman pertama, bukan tab sesi lama siapa pun
+    _simpanSesi();
+    showDashboard();
+  } catch (e) {
+    errEl.textContent = "Gagal menghubungi server. Coba lagi.";
+    errEl.classList.remove("hidden");
+  } finally {
+    tombol.disabled = false;
+    spinner.classList.add("hidden");
+    teks.textContent = "Masuk";
   }
-  showDashboard();
 }
 
 async function handleGantiPassword() {
@@ -696,14 +959,19 @@ async function handleGantiPassword() {
   if (!j.ok) return alert(j.error || "Gagal mengganti password.");
   document.getElementById("mustChangeModal").classList.add("hidden");
   document.getElementById("mustChangeModal").classList.remove("flex");
+  page = "p1";
+  _simpanSesi();
   showDashboard();
 }
 
 function handleLogout() {
   // Semua cache dikosongkan supaya data user sebelumnya tidak terbawa
-  // kalau ada orang lain login di komputer yang sama.
+  // kalau ada orang lain login di komputer yang sama. Sesi tersimpan
+  // (localStorage) WAJIB ikut dihapus di sini juga — kalau tidak, refresh
+  // setelah logout akan otomatis login lagi sebagai user sebelumnya.
+  _hapusSesi();
   authToken = null; currentUser = null; page = "p1";
-  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null;
+  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null; revenueCache = null;
   document.getElementById("dashboardScreen").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("loginEmail").value = "";
@@ -853,6 +1121,7 @@ async function loadVolume() {
 const PAGES = [
   { id: "p1", label: "Ringkasan Eksekutif", panel: "dataPanel",   onOpen: () => { if (series.length) render(); else loadRingkasan(); } },
   { id: "p2", label: "Piutang & Hutang",    panel: "page2Panel",  periode: "Posisi per tanggal berjalan (snapshot)", onOpen: loadArap },
+  { id: "p6", label: "Penjualan Harian",    panel: "page6Panel",  periode: "Memuat…", onOpen: loadRevenueHarian },
   { id: "p5", label: "Arus Kas Harian",     panel: "page5Panel",  periode: "Memuat…", onOpen: loadArusKasHarian },
   { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
   { id: "p4", label: "Kelola User",         panel: "page4Panel",  periode: "Pengaturan akun pengguna", adminSaja: true, onOpen: loadUsers },
@@ -913,6 +1182,7 @@ function switchPage(p) {
     p = halamanBoleh[0].id;
   }
   page = p;
+  _simpanSesi(); // ingat tab terakhir supaya tidak balik ke p1/login saat refresh (permintaan Doel 4 Agu, poin 5)
   const aktif = PAGES.find(x => x.id === p) || PAGES[0];
 
   PAGES.forEach(x => {
@@ -1183,6 +1453,34 @@ function renderVolume(c) {
         <td class="text-right ${low ? 'font-semibold text-red-700' : 'font-medium'}">${x.yield === null ? "—" : "Rp " + Math.round(x.yield).toLocaleString("id-ID") + " rb"}</td>
       </tr>`;
     }).join("");
+
+  // Catatan beda sumber tabel vs grafik tren di bawahnya (permintaan Doel
+  // 4 Agu 2026): tabel "Yield" di atas mengikuti PERIODE YANG DIPILIH user
+  // (selMonths, biasanya periode laporan keuangan yang SUDAH resmi
+  // ditutup — mis. Juni). Grafik "Tren Yield per Segmen" TIDAK menyaring
+  // apa pun — selalu menampilkan SEMUA bulan yang ada di sumber datanya
+  // (`volSeries`, dibaca LANGSUNG/live dari tab volume, TERMASUK bulan
+  // berjalan yang belum ditutup). Kalau bulan terakhir di data live itu
+  // TIDAK termasuk dalam periode yang dipilih user, keduanya sedang
+  // menampilkan "per tanggal" yang beda — itu WAJIB disampaikan eksplisit,
+  // bukan dibiarkan user menyimpulkan sendiri kenapa grafik "lebih jauh"
+  // dari tabel di sebelahnya.
+  const catatanYield = document.getElementById("yieldTrendCatatan");
+  if (volSeries && volSeries.length) {
+    const bulanTerakhirLive = volSeries[volSeries.length - 1].bulan;
+    const termasukDipilih = selMonths.includes(bulanTerakhirLive);
+    if (!termasukDipilih) {
+      catatanYield.innerHTML = `<b>Data grafik ini sampai dengan ${bulanTerakhirLive}</b> (data live/berjalan, ` +
+        `belum resmi ditutup) — <b>beda</b> dari tabel "Yield" &amp; kartu KPI di atas yang memakai periode ` +
+        `laporan resmi yang dipilih (<b>${c.dispLabel}</b>). Angka bulan berjalan di grafik ini masih bisa ` +
+        `berubah sampai periode itu resmi ditutup.`;
+      catatanYield.classList.remove("hidden");
+    } else {
+      catatanYield.classList.add("hidden");
+    }
+  } else {
+    catatanYield.classList.add("hidden");
+  }
 
   renderYieldChart();
 }
@@ -2018,6 +2316,713 @@ function renderRincianChart(inflow, outflow) {
 }
 
 /* ============================================================
+ * HALAMAN 6 (p6): PENJUALAN HARIAN (REVENUE)
+ * Membaca snapshot Tahap 10 lewat action "getRevenueHarianDashboard" —
+ * TIDAK PERNAH memanggil mesin hitung mentah (PRD §8 lapis 1). Pola
+ * sama seperti Halaman 5 (Arus Kas Harian, Tahap 11).
+ * ============================================================ */
+async function loadRevenueHarian() {
+  try {
+    if (revenueCache) { renderRevenueHarian(revenueCache); return; }
+    const j = await apiPost({ action: "getRevenueHarianDashboard" });
+    if (!j.ok) { alert(j.error || "Gagal memuat data penjualan harian."); return; }
+    revenueCache = j;
+    renderRevenueHarian(j);
+  } catch (e) {
+    // Kalau ada error saat MERENDER (bukan saat fetch — itu sudah ditangani
+    // di atas), tetap tampilkan pesan jelas, JANGAN biarkan halaman diam
+    // kosong tanpa keterangan apa pun (persis keluhan Doel: terlihat "hang").
+    console.error("Gagal merender Penjualan Harian:", e);
+    alert("Terjadi error saat menampilkan halaman Penjualan Harian: " + e.message + "\n\nBuka Console browser (F12) untuk detail, lalu laporkan pesannya.");
+  }
+}
+
+/** 'YYYY-MM-DD' -> label bulan pendek Indonesia + 2 digit tahun, mis. "Jul-26". Dipakai untuk header kolom MTD/Bulan Lalu (modul-harian §6). */
+function fmtBulanLabelDariTanggal(iso) {
+  const BULAN = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  const p = String(iso).split("-").map(Number);
+  if (p.length < 2 || !p[1]) return "";
+  return BULAN[p[1] - 1] + "-" + String(p[0]).slice(2);
+}
+/** Bulan sebelumnya dari tanggal 'YYYY-MM-DD' (untuk label kolom "Bulan Lalu Penuh"). */
+function fmtBulanLaluLabelDariTanggal(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length < 2 || !p[1]) return "";
+  let y = p[0], m = p[1] - 1;
+  if (m < 1) { m = 12; y -= 1; }
+  return fmtBulanLabelDariTanggal(y + "-" + (m < 10 ? "0" : "") + m + "-01");
+}
+
+/** 'YYYY-MM-DD' -> 'DD/MM/YYYY' (format yang diminta Doel untuk Tanggal Acuan/Pelaporan). */
+function fmtTglSlash(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || !p[1]) return String(iso || "—");
+  return String(p[2]).padStart(2, "0") + "/" + String(p[1]).padStart(2, "0") + "/" + p[0];
+}
+const RV6_NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+/** Nama hari Indonesia dari kunci 'YYYY-MM-DD', dihitung sendiri (bukan locale browser) supaya konsisten. */
+function fmtNamaHari(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || !p[1]) return "";
+  return RV6_NAMA_HARI[new Date(p[0], p[1] - 1, p[2]).getDay()];
+}
+
+/**
+ * "Tanggal Acuan" / "Tanggal Pelaporan" — pengganti "Data per X" (revisi
+ * disetujui Doel 4 Agu 2026 lewat mockup-p6-tanggal-acuan.html). Sumber
+ * datanya `j.periode` (hasil `hitungPeriode_` modul kalender, Tahap 7) yang
+ * SUDAH diteruskan apa adanya sejak Tahap 12a — field `sebab` berisi ALASAN
+ * ASLI per tanggal yang dilewati (akhir pekan ATAU nama hari libur
+ * sungguhan dari tab Libur), bukan tebakan/heuristik di frontend. Kalau
+ * `j.periode` entah kenapa tidak ada (snapshot sangat lama), turun ke
+ * `j.tanggal` saja supaya tidak pernah menampilkan halaman kosong.
+ */
+function renderTanggalAcuanRevenue(j) {
+  const periode = j.periode;
+  const acuanEl = document.getElementById("rv6TanggalAcuan");
+  const pelaporanEl = document.getElementById("rv6TanggalPelaporan");
+  const waktuKet = document.getElementById("rv6WaktuSnapshotKet");
+  const catatan = document.getElementById("rv6CatatanPeriode");
+
+  if (!periode || !periode.tglAwal) {
+    acuanEl.textContent = "data transaksi tanggal " + fmtTglSlash(j.tanggal);
+    pelaporanEl.textContent = "—";
+    waktuKet.textContent = "Snapshot ditulis " + (j.waktuDibuat || "—") + ".";
+    catatan.classList.add("hidden");
+    return;
+  }
+
+  const acuanTeks = periode.tglAwal === periode.tglAkhir
+    ? "data transaksi tanggal " + fmtTglSlash(periode.tglAwal)
+    : "data transaksi tanggal " + fmtTglSlash(periode.tglAwal) + " - " + fmtTglSlash(periode.tglAkhir);
+  acuanEl.textContent = acuanTeks;
+  pelaporanEl.textContent = fmtTglSlash(periode.hariIni) + " (" + fmtNamaHari(periode.hariIni) + ")";
+  waktuKet.textContent = "Snapshot ditulis " + (j.waktuDibuat || "—") + ".";
+
+  if (periode.jumlahHari > 1 && periode.sebab && periode.sebab.length) {
+    catatan.className = "text-xs mt-2 rounded-lg px-3 py-2 bg-amber-50 border border-amber-100 text-amber-800";
+    catatan.innerHTML = "<b>Tanggal acuan mencakup " + periode.jumlahHari + " hari.</b> " +
+      periode.sebab.slice().reverse().map(s => s).join("; ") + ". Revenue tanggal-tanggal itu tetap " +
+      "dihitung, hanya laporannya digabung ke hari kerja berikutnya karena back office libur " +
+      "(modul-harian §1) — bukan periode pilihan, murni mengikuti aturan H-1 + lewati akhir pekan/hari libur.";
+    catatan.classList.remove("hidden");
+  } else {
+    catatan.classList.add("hidden");
+  }
+}
+
+function renderRevenueHarian(j) {
+  const kosong = document.getElementById("page6Kosong");
+  const isi = document.getElementById("page6Isi");
+
+  if (!j.adaData) {
+    kosong.textContent = j.pesan || "Belum ada data penjualan harian.";
+    kosong.classList.remove("hidden");
+    isi.classList.add("hidden");
+    return;
+  }
+  kosong.classList.add("hidden");
+  isi.classList.remove("hidden");
+
+  document.getElementById("periodeLabel").textContent = "Tanggal pelaporan " + fmtTglSlash(j.periode && j.periode.hariIni || j.tanggal);
+
+  renderTanggalAcuanRevenue(j);
+
+  // banner "belum diperbarui untuk hari ini" — warna & ambang SENGAJA
+  // sama seperti p5 (Tahap 11k), lihat catatan endpoint p6.
+  const banner = document.getElementById("rv6Banner");
+  const KELAS_BANNER = {
+    normal:    "bg-amber-50 border border-amber-200 text-amber-800",
+    perhatian: "bg-orange-50 border border-orange-300 text-orange-800",
+    kritis:    "bg-red-50 border border-red-300 text-red-800",
+  };
+  if (j.terkini || !j.labelStatus) {
+    banner.classList.add("hidden");
+  } else {
+    banner.textContent = j.labelStatus;
+    const kelasWarna = KELAS_BANNER[j.levelKeterlambatan] || KELAS_BANNER.normal;
+    banner.className = "rounded-xl px-4 py-3 mb-4 text-sm font-medium " + kelasWarna;
+  }
+
+  const p = j.ringkasan.periode;
+  const mtd = j.ringkasan.mtd;
+  const blp = j.ringkasan.bulanLaluPenuh;
+  const ytd = j.ringkasan.ytd; // kolom ke-4 (revisi lanjutan 9 poin, 4 Agu 2026) — bisa undefined kalau snapshot lama
+
+  // KPI cards — urutan Gross/Diskon/Net/Jumlah Nota (revisi 9 poin, poin 1),
+  // tiap kartu diberi keterangan di bawah angka.
+  document.getElementById("rv6Gross").textContent = fmtRp(p.gross);
+  document.getElementById("rv6Diskon").textContent = fmtRp(p.disc);
+  document.getElementById("rv6DiskonKet").textContent = p.gross > 0
+    ? fmtPct(p.disc / p.gross * 100) + "% dari gross"
+    : "";
+  document.getElementById("rv6Net").textContent = fmtRp(p.net);
+  document.getElementById("rv6NetRata").textContent = p.jumlahHari > 1
+    ? "Rata-rata/hari: Rp " + fmtRp(p.rataPerHari) + " (" + p.jumlahHari + " hari)"
+    : "";
+  document.getElementById("rv6Nota").textContent = (p.jumlahNota ?? 0).toLocaleString("id-ID");
+  document.getElementById("rv6NotaKet").textContent = p.jumlahNota > 0
+    ? "Rp " + fmtRp(p.net / p.jumlahNota) + " / nota"
+    : "";
+
+  renderTrenRevenue(j.tren || []);
+
+  // ringkasan 4 kolom — header MTD/Bulan Lalu diberi label bulan sungguhan
+  // (modul-harian §6: "<BLN>-26 (MTD)" / "<BLNLALU>-26 (Penuh)"); YTD diberi
+  // label tahun (revisi lanjutan 9 poin, 4 Agu 2026).
+  document.getElementById("rv6ColPeriode").textContent = "Periode";
+  document.getElementById("rv6ColMtd").textContent = fmtBulanLabelDariTanggal(j.tanggal) + " (MTD)";
+  document.getElementById("rv6ColBulanLalu").textContent = fmtBulanLaluLabelDariTanggal(j.tanggal) + " (Penuh)";
+  document.getElementById("rv6ColYtd").textContent = "YTD " + j.tanggal.slice(0, 4);
+
+  const baris3 = (label, key, formatter) => {
+    const f = formatter || fmtRp;
+    return `<tr class="border-t border-slate-100">
+      <td class="py-1.5 text-slate-600">${label}</td>
+      <td class="py-1.5 text-right">${f(j.ringkasan.periode[key])}</td>
+      <td class="py-1.5 text-right">${f(j.ringkasan.mtd[key])}</td>
+      <td class="py-1.5 text-right">${f(j.ringkasan.bulanLaluPenuh[key])}</td>
+      <td class="py-1.5 text-right">${ytd ? f(ytd[key]) : "—"}</td>
+    </tr>`;
+  };
+  const fmtAngka = v => (v ?? 0).toLocaleString("id-ID");
+
+  // Baris "Growth" (revisi 9 poin, poin 2) — pola dipilih via AskUserQuestion:
+  // Periode dibandingkan rata2/hari 7 hari SEBELUM periode (bukan total, supaya
+  // adil terhadap periode multi-hari — modul-harian §5.3); MTD dibandingkan
+  // Bulan Lalu Penuh; Bulan Lalu Penuh dibandingkan 2 Bulan Lalu Penuh.
+  // Kolom YTD SENGAJA n/a — disetujui Doel 4 Agu 2026 (belum ada kesepakatan
+  // baseline pembanding YTD, mis. YTD tahun lalu belum tersedia di sistem ini).
+  const growthPeriode = pctDelta(p.rataPerHari, j.ringkasan.rata7HariSebelumnya);
+  const growthMtd = pctDelta(mtd.net, blp.net);
+  const growthBlp = j.ringkasan.duaBulanLaluPenuh ? pctDelta(blp.net, j.ringkasan.duaBulanLaluPenuh.net) : null;
+  const chipSel = pct => {
+    if (pct === null || pct === undefined) return `<span class="text-[11px] text-slate-400">n/a</span>`;
+    const up = pct >= 0;
+    return `<span class="text-[11px] font-medium ${up ? 'text-emerald-700' : 'text-red-600'}">${up ? '▲' : '▼'} ${fmtPct(Math.abs(pct))}%</span>`;
+  };
+  const barisGrowth = `<tr class="border-t border-slate-200 bg-slate-50/70">
+      <td class="py-1.5 text-slate-700 font-medium">Growth</td>
+      <td class="py-1.5 text-right">${chipSel(growthPeriode)}</td>
+      <td class="py-1.5 text-right">${chipSel(growthMtd)}</td>
+      <td class="py-1.5 text-right">${chipSel(growthBlp)}</td>
+      <td class="py-1.5 text-right">${chipSel(null)}</td>
+    </tr>`;
+
+  document.getElementById("rv6TabelRingkasan").innerHTML =
+    barisGrowth +
+    baris3("Gross", "gross") +
+    baris3("Diskon", "disc") +
+    baris3("Net", "net") +
+    baris3("Jumlah Nota", "jumlahNota", fmtAngka) +
+    baris3("Jumlah Pasien (approx)", "jumlahPasienUnik", fmtAngka) +
+    baris3("Net ARA", "netARA");
+
+  const rataKet = document.getElementById("rv6RataKet");
+  if (p.jumlahHari > 1) {
+    rataKet.textContent = `Kolom "Periode" mencakup ${p.jumlahHari} hari (modul-harian §5.3: jangan bandingkan total periode multi-hari dengan total 1 hari — pakai rata-rata per hari di atas).`;
+    rataKet.classList.remove("hidden");
+  } else rataKet.classList.add("hidden");
+
+  document.getElementById("rv6GrowthKet").textContent =
+    `Growth Periode = rata-rata/hari vs rata-rata 7 hari sebelumnya. Growth MTD = vs Bulan Lalu Penuh. ` +
+    `Growth Bulan Lalu = vs 2 bulan sebelumnya (${j.ringkasan.duaBulanLaluPenuh ? fmtBulanLaluLabelDariTanggal(fmtBulanLaluTglAwal(j.tanggal)) : "—"}).`;
+
+  // Anomali bisnis (poin 7) DIBAGI ke section yang relevan — box gabungan
+  // "Anomali & Temuan Bisnis" DIHAPUS, lihat routeAnomaliRevenue().
+  const bucketAnomali = routeAnomaliRevenue(j.anomaliBisnis || []);
+  document.getElementById("rv6AnomaliRingkasan").innerHTML = renderAnomaliList(bucketAnomali.ringkasan);
+
+  renderChartRingkasan(p, mtd, blp, ytd);
+  renderDimensiRevenue(j.dimensi, bucketAnomali);
+  renderKontributorTerbesar(j.dimensi && j.dimensi.pengirim, mtd.net, bucketAnomali.pengirim);
+  renderHighlightARA(j.ringkasan);
+  renderHighlightTorch(j.ringkasan);
+  renderPipaDataRevenue(j);
+}
+
+/** 'YYYY-MM-DD' -> tanggal apa saja di bulan SEBELUMNYA (untuk label "2 bulan lalu" lewat fmtBulanLaluLabelDariTanggal, yang menghitung 1 bulan mundur dari argumennya). */
+function fmtBulanLaluTglAwal(iso) {
+  const p = String(iso).split("-").map(Number);
+  if (p.length < 2 || !p[1]) return iso;
+  let y = p[0], m = p[1] - 1;
+  if (m < 1) { m = 12; y -= 1; }
+  return y + "-" + (m < 10 ? "0" : "") + m + "-01";
+}
+
+/**
+ * Grafik tren Net Revenue harian — data dari beberapa snapshot terakhir
+ * (backend `_rv6BangunTren_`). Pola & ambang "minimal 2 titik" sama
+ * seperti tren Arus Kas Harian (Tahap 11o).
+ */
+function renderTrenRevenue(tren) {
+  const wrap = document.getElementById("rv6TrenWrap");
+  const kosong = document.getElementById("rv6TrenKosong");
+
+  if (!tren.length || tren.length < 2 || typeof Chart === "undefined") {
+    wrap.classList.add("hidden");
+    kosong.classList.remove("hidden");
+    kosong.textContent = !tren.length
+      ? "Belum ada data tren."
+      : tren.length < 2
+        ? `Baru ada ${tren.length} hari data snapshot — grafik akan tampil setelah datanya lebih dari 1 hari.`
+        : "Grafik tidak tersedia di browser ini.";
+    return;
+  }
+  wrap.classList.remove("hidden");
+  kosong.classList.add("hidden");
+
+  // Penanda titik gabungan multi-hari (revisi lanjutan, persetujuan Doel
+  // "1. Setuju dengan usulanmu" atas mockup-p6-ytd-segmen-tren.html) — titik
+  // dengan `hari > 1` (akhir pekan/libur digabung, dari `tglAwal`/`hari`
+  // backend `_rv6BangunTren_`) ditandai wajik amber lebih besar, BUKAN
+  // dianggap "hilang". `hari === null` (snapshot lama sebelum migrasi
+  // tglAwal) diperlakukan sama seperti hari === 1 — titik biasa, karena
+  // status gabungannya memang belum diketahui, bukan genuinely 1 hari.
+  const warnaTitik = tren.map(t => (t.hari && t.hari > 1) ? "#d97706" : "#0d9488");
+  const ukuranTitik = tren.map(t => (t.hari && t.hari > 1) ? 8 : 3);
+  const bentukTitik = tren.map(t => (t.hari && t.hari > 1) ? "rectRot" : "circle");
+  // Label sumbu-X untuk titik gabungan: tampilkan RENTANG langsung di sumbu
+  // ("31 Jul–2 Agu"), bukan cuma tanggal akhir + rentang disembunyikan di
+  // tooltip — Doel melaporkan rentang tanggal acuan transaksi harus
+  // kelihatan tanpa perlu hover (revisi atas mockup-p6-ytd-segmen-tren.html,
+  // 4 Agu 2026). Titik 1-hari & titik yang `tglAwal`-nya belum ada (snapshot
+  // lama belum migrasi) tetap pakai tanggal tunggal seperti sebelumnya.
+  const labelSumbu = tren.map(t => (t.hari && t.hari > 1 && t.tglAwal)
+    ? fmtTglPendek(t.tglAwal) + "–" + fmtTglPendek(t.tanggal)
+    : fmtTglPendek(t.tanggal));
+
+  if (chartRevenueTren) chartRevenueTren.destroy();
+  chartRevenueTren = new Chart(document.getElementById("rv6ChartTren"), {
+    type: "line",
+    data: {
+      labels: labelSumbu,
+      datasets: [{
+        label: "Net Revenue",
+        data: tren.map(t => Math.round(t.net / 1e6 * 10) / 10),
+        borderColor: "#0d9488",
+        backgroundColor: "#0d948822",
+        fill: true,
+        tension: 0.3,
+        pointRadius: ukuranTitik,
+        pointBackgroundColor: warnaTitik,
+        pointBorderColor: warnaTitik,
+        pointStyle: bentukTitik,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => {
+          const t = tren[c.dataIndex];
+          if (t.hari && t.hari > 1) {
+            return ["Rp " + t.net.toLocaleString("id-ID") + " (TOTAL " + t.hari + " hari)", "Rentang: " + fmtTglPendek(t.tglAwal) + "–" + fmtTglPendek(t.tanggal)];
+          }
+          return "Rp " + t.net.toLocaleString("id-ID") + (t.hari === null ? "" : " (1 hari)");
+        } } },
+      },
+      scales: {
+        y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } },
+      },
+    },
+  });
+}
+
+/**
+ * Render dimensi (segmen/departemen/unit) lewat PERULANGAN — kontrak PRD §7
+ * mengikat: "tabel dan drill-down dibuat dengan perulangan atas dimensi,
+ * bukan menulis empat tabel terpisah." Kalau backend suatu saat menambah
+ * dimensi baru (mis. Test_Harian/Dokter_Harian, PRD §7), kartu barunya
+ * otomatis muncul di sini TANPA ubah HTML/JS ini sama sekali.
+ *
+ * "pengirim" SENGAJA DILEWATI di sini (revisi 9 poin, poin 6) — punya kartu
+ * khusus "Kontributor Terbesar (MTD)" lewat renderKontributorTerbesar(),
+ * bukan tabel generik seperti dimensi lain.
+ *
+ * Tiap kartu diberi baris Total (poin 3-5): Net (Periode)/Net MTD/Net Bulan
+ * Lalu SELALU dijumlah; Jumlah Nota HANYA dijumlah untuk "segmen" (mutually
+ * exclusive, modul-harian §5.2) — untuk departemen/unit satu nota bisa
+ * mencakup lebih dari satu baris, jadi TIDAK dijumlah (ditandai "—").
+ */
+function renderDimensiRevenue(dimensi, bucketAnomali) {
+  const wrap = document.getElementById("rv6DimensiWrap");
+  if (!dimensi) { wrap.innerHTML = ""; return; }
+
+  const kunciDitampilkan = Object.keys(dimensi).filter(k => k !== "pengirim");
+
+  wrap.innerHTML = kunciDitampilkan.map(kunci => {
+    const d = dimensi[kunci];
+    // Kolom Net YTD (revisi lanjutan: "tambah Net-YTD di Segmen") — data-driven,
+    // BUKAN hardcode per nama dimensi (PRD §7 kontrak perulangan): kalau baris
+    // pertama punya field netYTD, kolomnya otomatis muncul untuk dimensi APA
+    // SAJA yang backend-nya sudah kirim field itu (saat ini: segmen).
+    const adaYtd = d.baris.length > 0 && d.baris[0].netYTD !== undefined;
+
+    const baris = d.baris.map(b => `<tr class="border-t border-slate-100">
+        <td class="py-1.5 text-slate-600">${b.nama}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.net)}</td>
+        <td class="py-1.5 text-right">${(b.jumlahNota ?? 0).toLocaleString("id-ID")}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.netMTD)}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.netBulanLaluPenuh)}</td>
+        ${adaYtd ? `<td class="py-1.5 text-right font-medium">${b.netYTD === undefined ? "—" : fmtRp(b.netYTD)}</td>` : ""}
+      </tr>`).join("");
+
+    const totalNet = d.baris.reduce((s, b) => s + (b.net || 0), 0);
+    const totalMTD = d.baris.reduce((s, b) => s + (b.netMTD || 0), 0);
+    const totalBlp = d.baris.reduce((s, b) => s + (b.netBulanLaluPenuh || 0), 0);
+    const totalYtd = d.baris.reduce((s, b) => s + (b.netYTD || 0), 0);
+    const amanJumlahNota = kunci === "segmen";
+    const totalNota = amanJumlahNota
+      ? d.baris.reduce((s, b) => s + (b.jumlahNota || 0), 0).toLocaleString("id-ID")
+      : "—";
+    const barisTotal = d.baris.length ? `<tr class="border-t border-slate-300 font-semibold text-slate-800">
+        <td class="py-1.5">Total</td>
+        <td class="py-1.5 text-right">${fmtRp(totalNet)}</td>
+        <td class="py-1.5 text-right">${totalNota}</td>
+        <td class="py-1.5 text-right">${fmtRp(totalMTD)}</td>
+        <td class="py-1.5 text-right">${fmtRp(totalBlp)}</td>
+        ${adaYtd ? `<td class="py-1.5 text-right">${fmtRp(totalYtd)}</td>` : ""}
+      </tr>` : "";
+    const ketTotal = (d.baris.length && !amanJumlahNota)
+      ? `<p class="text-[11px] text-slate-400 mt-2">Jumlah Nota pada baris Total tidak dijumlah — satu nota bisa mencakup lebih dari satu baris ${d.label.toLowerCase()} (modul-harian §5.2).</p>`
+      : "";
+
+    // Grafik komposisi Segmen (revisi 9 poin, poin 9; diganti stacked bar di
+    // revisi lanjutan atas persetujuan Doel "Gaya grafik : Opsi B") — HANYA segmen.
+    const chartHtml = kunci === "segmen"
+      ? `<div class="mt-4" style="height:220px"><canvas id="rv6ChartSegmen"></canvas></div>`
+      : "";
+
+    return `<div class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+      <p class="text-sm font-medium text-slate-700 mb-2">${d.label} <span class="text-xs font-normal text-slate-400">(${d.baris.length} baris)</span></p>
+      <table class="w-full text-xs">
+        <thead><tr class="text-slate-400 border-b border-slate-100">
+          <th class="text-left font-normal pb-2">Nama</th>
+          <th class="text-right font-normal pb-2">Net (Periode)</th>
+          <th class="text-right font-normal pb-2">Jumlah Nota</th>
+          <th class="text-right font-normal pb-2">Net MTD</th>
+          <th class="text-right font-normal pb-2">Net Bln Lalu</th>
+          ${adaYtd ? `<th class="text-right font-normal pb-2">Net YTD</th>` : ""}
+        </tr></thead>
+        <tbody>${baris || `<tr><td colspan="5" class="py-3 text-center text-slate-400">Tidak ada baris.</td></tr>`}${barisTotal}</tbody>
+      </table>
+      ${ketTotal}
+      <div class="space-y-1.5 mt-2" id="rv6AnomaliDim-${kunci}"></div>
+      ${chartHtml}
+    </div>`;
+  }).join("");
+
+  // Isi anomali per kartu + grafik segmen SETELAH innerHTML terpasang
+  // (elemen "rv6AnomaliDim-*"/"rv6ChartSegmen" baru ada di DOM di titik ini).
+  kunciDitampilkan.forEach(kunci => {
+    const el = document.getElementById("rv6AnomaliDim-" + kunci);
+    if (el) el.innerHTML = renderAnomaliList((bucketAnomali && bucketAnomali[kunci]) || []);
+  });
+  if (dimensi.segmen) renderChartSegmen(dimensi.segmen.baris);
+}
+
+/**
+ * Anomali bisnis (modul-harian §7) — TIDAK LAGI satu box gabungan (revisi 9
+ * poin, poin 7: "Anomali & Temuan Bisnis" dihapus, keterangan dipindah ke
+ * section relevan). `routeAnomaliRevenue` membagi daftar per `jenis`/`dimensi`
+ * ke: ringkasan (lonjakan/rasio diskon/nota tanpa nilai), segmen (komposisi
+ * segmen), departemen, unit, pengirim (konsentrasi/berhenti total/pelanggan
+ * hilang & baru). `renderAnomaliList` dipakai ulang di semua section itu.
+ */
+function routeAnomaliRevenue(daftar) {
+  const bucket = { ringkasan: [], segmen: [], departemen: [], unit: [], pengirim: [] };
+  const petaDimensi = { Pengirim: "pengirim", Departemen: "departemen", Unit: "unit" };
+  daftar.forEach(a => {
+    if (a.jenis === "tidak_ada") return;
+    if (a.jenis === "lonjakan_penurunan" || a.jenis === "rasio_diskon" || a.jenis === "nota_tanpa_nilai") {
+      bucket.ringkasan.push(a);
+    } else if (a.jenis === "komposisi_segmen") {
+      bucket.segmen.push(a);
+    } else if (a.jenis === "konsentrasi" || a.jenis === "berhenti_total") {
+      (bucket[petaDimensi[a.dimensi]] || bucket.ringkasan).push(a);
+    } else if (a.jenis === "pelanggan_hilang" || a.jenis === "pelanggan_baru") {
+      bucket.pengirim.push(a);
+    } else {
+      bucket.ringkasan.push(a); // fallback aman: jenis tak dikenal tetap tampil, bukan hilang diam-diam
+    }
+  });
+  return bucket;
+}
+
+/** Render daftar anomali (hasil routeAnomaliRevenue) jadi HTML — kosong jika tidak ada. */
+function renderAnomaliList(daftar) {
+  if (!daftar || !daftar.length) return "";
+  return daftar.map(a => `<p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">• ${a.pesan}</p>`).join("");
+}
+
+/**
+ * "Kontributor Terbesar (MTD)" — poin 6, pengganti breakdown pengirim per
+ * segmen (dibatalkan karena Pengirim_Harian tak punya kolom segmen — lihat
+ * LOG.md). Pola & sumber SAMA PERSIS dengan laporan terjadwal lama: Top 8
+ * pengirim diurutkan Net MTD desc + % dari total Net MTD perusahaan.
+ */
+function renderKontributorTerbesar(dimPengirim, totalMtd, daftarAnomali) {
+  const tbody = document.getElementById("rv6TabelKontributor");
+  if (!dimPengirim || !dimPengirim.baris || !dimPengirim.baris.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-400">Tidak ada data pengirim.</td></tr>`;
+  } else {
+    const top8 = dimPengirim.baris.slice().sort((a, b) => (b.netMTD || 0) - (a.netMTD || 0)).slice(0, 8);
+    tbody.innerHTML = top8.map((b, i) => {
+      const persen = totalMtd ? (b.netMTD / totalMtd * 100) : null;
+      return `<tr class="border-t border-slate-100">
+        <td class="py-1.5 text-slate-400">${i + 1}</td>
+        <td class="py-1.5 text-slate-600">${b.nama}</td>
+        <td class="py-1.5 text-right">${fmtRp(b.netMTD)}</td>
+        <td class="py-1.5 text-right">${persen === null ? "—" : fmtPct(persen) + "%"}</td>
+      </tr>`;
+    }).join("");
+  }
+  document.getElementById("rv6AnomaliKontributor").innerHTML = renderAnomaliList(daftarAnomali);
+}
+
+/**
+ * Highlight Departemen Anestesi (ARA) — poin 8, pola pakem laporan lama:
+ * Revenue Net, "Hari Aktif" (X dari Y hari — dari `hariAktifARA`/`jumlahHari`
+ * backend, Tahap 12), Rata-rata per Hari Aktif (DITEBALKAN). SELALU tampil
+ * walau Rp 0 (bukan disembunyikan), sesuai pakem.
+ *
+ * PENTING (ditemukan 2026-08-04, laporan Doel): `hariAktifARA` adalah field
+ * BARU (revisi 9 poin) — snapshot yang ditulis SEBELUM revisi backend ini
+ * tidak punya field itu sama sekali di `dataJson`-nya. Kalau field itu
+ * `undefined` (BUKAN 0 — beda!), itu tandanya snapshot LAMA/BASI untuk
+ * bagian ini, bukan berarti Hari Aktif-nya genuinely 0. Ditampilkan "—" +
+ * catatan, bukan angka 0 yang bisa disalahartikan sebagai fakta bisnis.
+ */
+function renderHighlightARA(ringkasan) {
+  const p = ringkasan.periode, m = ringkasan.mtd;
+  // `ytd` sudah ada di kontrak ringkasan sejak revisi Net-YTD (4 Agu 2026,
+  // sama seperti periode/mtd) — kalau field ini tidak ada sama sekali berarti
+  // snapshot BASI (ditulis sebelum revisi ini), bukan berarti nilainya 0.
+  const y = ringkasan.ytd || {};
+  const dataBaruAda = p.hariAktifARA !== undefined && m.hariAktifARA !== undefined;
+  const ytdAda = ringkasan.ytd !== undefined && y.hariAktifARA !== undefined;
+  const rataAktif = (netARA, hariAktif) => hariAktif > 0 ? fmtRp(netARA / hariAktif) : fmtRp(0);
+  const hariAktifTeks = (hariAktif, jumlahHari) =>
+    hariAktif === undefined ? "—" : hariAktif + " dari " + jumlahHari + " hari";
+  const rataAktifTeks = (netARA, hariAktif) =>
+    hariAktif === undefined ? "—" : rataAktif(netARA, hariAktif);
+  document.getElementById("rv6TabelARA").innerHTML = `
+    <tr class="border-t border-amber-200">
+      <td class="py-1.5 text-amber-800">Revenue Net</td>
+      <td class="py-1.5 text-right">${fmtRp(p.netARA)}</td>
+      <td class="py-1.5 text-right">${fmtRp(m.netARA)}</td>
+      <td class="py-1.5 text-right">${ytdAda ? fmtRp(y.netARA) : "—"}</td>
+    </tr>
+    <tr class="border-t border-amber-200">
+      <td class="py-1.5 text-amber-800">Hari Aktif</td>
+      <td class="py-1.5 text-right">${hariAktifTeks(p.hariAktifARA, p.jumlahHari)}</td>
+      <td class="py-1.5 text-right">${hariAktifTeks(m.hariAktifARA, m.jumlahHari)}</td>
+      <td class="py-1.5 text-right">${ytdAda ? hariAktifTeks(y.hariAktifARA, y.jumlahHari) : "—"}</td>
+    </tr>
+    <tr class="border-t border-amber-200 font-semibold text-amber-900">
+      <td class="py-1.5">Rata-rata per Hari Aktif</td>
+      <td class="py-1.5 text-right">${rataAktifTeks(p.netARA, p.hariAktifARA)}</td>
+      <td class="py-1.5 text-right">${rataAktifTeks(m.netARA, m.hariAktifARA)}</td>
+      <td class="py-1.5 text-right">${ytdAda ? rataAktifTeks(y.netARA, y.hariAktifARA) : "—"}</td>
+    </tr>`;
+
+  const ket = document.getElementById("rv6ARASnapshotLamaKet");
+  if (!dataBaruAda || !ytdAda) {
+    ket.textContent = "Sebagian kolom (Hari Aktif / Rata-rata per Hari Aktif / YTD) belum bisa dihitung — snapshot ini ditulis SEBELUM field itu ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+    ket.classList.remove("hidden");
+  } else ket.classList.add("hidden");
+}
+
+/**
+ * Highlight Panel TORCH — poin 8, pola pakem laporan lama: qty & net Periode
+ * + qty & net MTD per test (nilai 0 tetap tampil), baris Total di akhir.
+ * Nama test DITEMUKAN OTOMATIS oleh backend (`ringkasan.torch`/`torchMTD`,
+ * §0.2 guard IgM/IgG) — BUKAN di-hardcode di sini, konsisten dengan pola
+ * penemuan kolom TORCH di seluruh proyek.
+ *
+ * PENTING (ditemukan 2026-08-04, laporan Doel: "MTD menampilkan nol semua
+ * padahal angka MTD sudah ada"): `ringkasan.torchMTD` adalah field BARU
+ * (revisi 9 poin) — snapshot yang ditulis SEBELUM revisi backend ini (mis.
+ * hasil `perbaikiSnapshotRevenue30Juli()` yang dijalankan sebelum kode
+ * backend diperbarui) TIDAK PUNYA field ini sama sekali di `dataJson`-nya.
+ * `torchMtd === undefined` (bukan `{}`) berarti snapshot BASI untuk bagian
+ * ini — kolom MTD ditandai "—" + catatan, BUKAN angka 0 yang bisa terlihat
+ * seperti fakta bisnis (padahal cuma belum pernah dihitung). Solusinya BUKAN
+ * kode, tapi menjalankan ulang snapshot (lihat catatan di bawah tabel).
+ */
+function renderHighlightTorch(ringkasan) {
+  const torchPeriode = ringkasan.torch || {};
+  const torchMtdAda = ringkasan.torchMTD !== undefined;
+  const torchMtd = ringkasan.torchMTD || {};
+  // `torchYTD` ditambahkan 2026-08-04 — pola SAMA PERSIS dgn torchMTD:
+  // field hilang total (bukan {}) berarti snapshot BASI, ditulis sebelum
+  // field ini ada.
+  const torchYtdAda = ringkasan.torchYTD !== undefined;
+  const torchYtd = ringkasan.torchYTD || {};
+  const namaTes = Object.keys(torchPeriode).sort();
+  const tbody = document.getElementById("rv6TabelTorch");
+  const ket = document.getElementById("rv6TorchSnapshotLamaKet");
+  if (!namaTes.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-slate-400">Tidak ada kolom TORCH ditemukan.</td></tr>`;
+    ket.classList.add("hidden");
+    return;
+  }
+  let totQtyP = 0, totNetP = 0, totQtyM = 0, totNetM = 0, totQtyY = 0, totNetY = 0;
+  const baris = namaTes.map(t => {
+    const pt = torchPeriode[t] || { qty: 0, net: 0 };
+    const mt = torchMtd[t] || { qty: 0, net: 0 };
+    const yt = torchYtd[t] || { qty: 0, net: 0 };
+    totQtyP += pt.qty || 0; totNetP += pt.net || 0;
+    if (torchMtdAda) { totQtyM += mt.qty || 0; totNetM += mt.net || 0; }
+    if (torchYtdAda) { totQtyY += yt.qty || 0; totNetY += yt.net || 0; }
+    return `<tr class="border-t border-blue-200">
+      <td class="py-1.5 text-blue-900">${t}</td>
+      <td class="py-1.5 text-right">${(pt.qty ?? 0).toLocaleString("id-ID")}</td>
+      <td class="py-1.5 text-right">${fmtRp(pt.net)}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? (mt.qty ?? 0).toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? fmtRp(mt.net) : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? (yt.qty ?? 0).toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? fmtRp(yt.net) : "—"}</td>
+    </tr>`;
+  }).join("");
+  const barisTotal = `<tr class="border-t border-blue-300 font-semibold text-blue-900">
+      <td class="py-1.5">Total</td>
+      <td class="py-1.5 text-right">${totQtyP.toLocaleString("id-ID")}</td>
+      <td class="py-1.5 text-right">${fmtRp(totNetP)}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? totQtyM.toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchMtdAda ? fmtRp(totNetM) : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? totQtyY.toLocaleString("id-ID") : "—"}</td>
+      <td class="py-1.5 text-right">${torchYtdAda ? fmtRp(totNetY) : "—"}</td>
+    </tr>`;
+  tbody.innerHTML = baris + barisTotal;
+
+  if (!torchMtdAda || !torchYtdAda) {
+    ket.textContent = "Sebagian kolom (MTD / YTD) belum bisa dihitung — snapshot ini ditulis SEBELUM field itu ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+    ket.classList.remove("hidden");
+  } else ket.classList.add("hidden");
+}
+
+/**
+ * Grafik batang Net Revenue Periode/MTD/Bulan Lalu Penuh/YTD (revisi 9
+ * poin, poin 9; kolom YTD ditambahkan 4 Agu 2026). `ytd` bisa undefined
+ * kalau snapshot lama (sebelum field ini ada) — batangnya tetap digambar
+ * dengan tinggi 0 + label "n/a" di tooltip, bukan bikin grafik gagal total.
+ */
+function renderChartRingkasan(p, mtd, blp, ytd) {
+  if (typeof Chart === "undefined") return;
+  if (chartRevenueRingkasan) chartRevenueRingkasan.destroy();
+  const adaYtd = !!ytd;
+  chartRevenueRingkasan = new Chart(document.getElementById("rv6ChartRingkasan"), {
+    type: "bar",
+    data: {
+      labels: ["Periode", "MTD", "Bulan Lalu Penuh", "YTD"],
+      datasets: [{
+        label: "Net Revenue",
+        data: [p.net, mtd.net, blp.net, adaYtd ? ytd.net : 0].map(v => Math.round((v || 0) / 1e6 * 10) / 10),
+        backgroundColor: ["#0d9488", "#2563eb", "#94a3b8", "#7c3aed"],
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => (c.dataIndex === 3 && !adaYtd)
+          ? "YTD belum tersedia (snapshot lama)"
+          : "Rp " + c.parsed.y.toLocaleString("id-ID", { minimumFractionDigits: 1 }) + " jt" } },
+      },
+      scales: { y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } } },
+    },
+  });
+}
+
+/**
+ * Grafik komposisi Segmen — stacked bar "Opsi B (100% proporsi)", persetujuan
+ * Doel ("review mockup-p6-ytd-segmen-tren.html ... 3. Gaya grafik : Opsi B").
+ * 4 kolom (Periode/MTD/Bulan Lalu/YTD), tiap kolom dinormalkan ke 100% supaya
+ * proporsi antar segmen kelihatan walau skala Rp tiap kolom jauh berbeda
+ * (Periode harian vs YTD setahun). Tooltip tetap tampilkan % DAN Rp juta.
+ * Warna dipakai ulang dari grafik "Segmen" di p1 (chartSegmen) — konsistensi
+ * visual antar halaman.
+ */
+const RV6_WARNA_SEGMEN = { APD: "#134e4a", APL: "#0d9488", APP: "#14b8a6", APS: "#99f6e4" };
+function renderChartSegmen(barisSegmen) {
+  const canvas = document.getElementById("rv6ChartSegmen");
+  if (!canvas || typeof Chart === "undefined" || !barisSegmen || !barisSegmen.length) return;
+  if (chartRevenueSegmen) chartRevenueSegmen.destroy();
+
+  const KOLOM = ["net", "netMTD", "netBulanLaluPenuh", "netYTD"];
+  const LABEL_KOLOM = ["Periode", "MTD", "Bulan Lalu", "YTD"];
+  const totalPerKolom = KOLOM.map(k => barisSegmen.reduce((s, b) => s + (b[k] || 0), 0));
+
+  const datasets = barisSegmen.map(b => ({
+    label: b.nama,
+    backgroundColor: RV6_WARNA_SEGMEN[b.kode] || "#94a3b8",
+    data: KOLOM.map((k, i) => totalPerKolom[i] ? Math.round((b[k] || 0) / totalPerKolom[i] * 1000) / 10 : 0),
+  }));
+
+  chartRevenueSegmen = new Chart(canvas, {
+    type: "bar",
+    data: { labels: LABEL_KOLOM, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: c => {
+          const kol = KOLOM[c.dataIndex];
+          const b = barisSegmen[c.datasetIndex];
+          const rp = b[kol] || 0;
+          const total = totalPerKolom[c.dataIndex];
+          const pct = total ? (rp / total * 100) : 0;
+          return b.nama + ": " + fmtPct(pct) + "% · Rp " + Math.round(rp / 1e6).toLocaleString("id-ID") + " jt";
+        } } },
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, ticks: { callback: v => v + "%" }, max: 100 },
+      },
+    },
+  });
+}
+
+/**
+ * Temuan pipa data + diagnostik TORCH — HANYA muncul kalau backend
+ * mengirimkannya (artinya peran ini staf/admin, lihat `getRevenueHarianDashboard_`
+ * di endpoint_p6_revenue). Direksi/viewer tidak pernah menerima field ini
+ * sama sekali dari server (bukan cuma disembunyikan di tampilan — PRD §15:
+ * "Penyaringan dilakukan di server, bukan sekadar disembunyikan di tampilan").
+ */
+function renderPipaDataRevenue(j) {
+  const box = document.getElementById("rv6PipaDataBox");
+  if (j.temuanPipaData === undefined) { box.classList.add("hidden"); return; }
+
+  const ada = j.temuanPipaData && j.temuanPipaData.length;
+  const adaRusak = j.barisRusakDilewati > 0;
+  box.classList.toggle("hidden", !ada && !adaRusak && !(j.torchDitemukan && j.torchDitemukan.length));
+  if (!ada && !adaRusak && !(j.torchDitemukan && j.torchDitemukan.length)) return;
+
+  const daftar = [];
+  if (adaRusak) {
+    daftar.push(`Data yang tampil BUKAN dari baris terakhir di tab snapshot — ${j.barisRusakDilewati} ` +
+      `baris di ekor tabel dilewati karena isinya rusak (kemungkinan tersisa dari sebelum perbaikan ` +
+      `format, lihat LOG.md Tahap 12f). Pertimbangkan bersihkan baris itu dari sheet kalau menetap.`);
+  }
+  if (ada) daftar.push(...j.temuanPipaData);
+  document.getElementById("rv6PipaData").innerHTML = daftar.length
+    ? daftar.map(t => `<p class="text-xs text-slate-600">• ${t}</p>`).join("")
+    : `<p class="text-xs text-slate-400">Tidak ada temuan pipa data.</p>`;
+
+  const torchEl = document.getElementById("rv6TorchKet");
+  if (j.torchDitemukan && j.torchDitemukan.length) {
+    torchEl.textContent = `Kolom TORCH ditemukan otomatis (${j.torchDitemukan.length}): ${j.torchDitemukan.join(", ")}. ` +
+      (j.waktuEksekusiMs !== undefined ? `Waktu eksekusi snapshot terakhir: ${j.waktuEksekusiMs} ms.` : "");
+  } else torchEl.textContent = "";
+}
+
+/* ============================================================
  * CHARTS (dengan fallback tanpa Chart.js)
  * ============================================================ */
 function renderCharts(endIdx) {
@@ -2083,6 +3088,25 @@ document.getElementById("modeTabs").addEventListener("click", e => {
   render();
 });
 document.getElementById("periodSelect").addEventListener("change", e => { sel = +e.target.value; render(); });
+
+/* ============================================================
+ * PULIHKAN SESI SAAT HALAMAN DIMUAT (refresh/buka tab baru) — poin 5,
+ * permintaan Doel 4 Agu. Kalau ada sesi tersimpan yang belum kedaluwarsa
+ * (client-side check saja, lihat SESI_MAKS_JAM), langsung buka dashboard
+ * di tab TERAKHIR yang dibuka user, lewati layar login. Token tetap
+ * divalidasi server di request data pertama — kalau ternyata sudah tidak
+ * berlaku (di-logout paksa admin, TTL server habis lebih awal, dst.),
+ * `_post` akan menangkap `needLogin`, menghapus sesi, dan reload otomatis
+ * ke layar login bersih (lihat `_post`).
+ * ============================================================ */
+(function pulihkanSesi() {
+  const s = _muatSesiTersimpan();
+  if (!s) return;
+  authToken = s.token;
+  currentUser = s.user;
+  page = s.page || "p1";
+  showDashboard();
+})();
 </script>
 </body>
 </html>
