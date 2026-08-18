@@ -2286,8 +2286,20 @@ async function pm8PerbaruiSnapshot() {
   btn.disabled = true; btn.textContent = "Memproses…";
   try {
     const j = await apiPost({ action: "perbaruiSnapshotSekarang" });
-    if (!j.ok) { pm8Pesan(j.error || j.pesan || "Gagal memperbarui snapshot.", "error"); return; }
-    pm8Pesan("Snapshot diperbarui. Buka lagi tab ini untuk melihat status terbaru.", "ok");
+    // CATATAN (bug ditemukan Doel 19 Agu, uji nyata): `perbaruiSnapshotSekarang`
+    // (= `jalankanSnapshotMalam_`, sudah ada sejak Tahap 10) TIDAK mengirim field
+    // "ok" seperti endpoint p8 lain — bentuk keluarannya APA ADANYA
+    // {arusKas:{ditulis,alasan?}, revenue:{ditulis,alasan?}, rollupBulanBerjalan:{ok,...}}.
+    // Kode lama di sini keliru mengasumsikan SEMUA endpoint punya `ok`, jadi selalu
+    // menampilkan "Gagal" walau prosesnya berjalan normal (paling sering karena data
+    // hari ini memang belum siap — itu status wajar, bukan kegagalan). `j.ok === false`
+    // HANYA muncul kalau `doPost` menangkap exception sungguhan (lihat `Code.gs`) —
+    // itu satu-satunya kasus yang benar-benar gagal.
+    if (j.ok === false) { pm8Pesan(j.error || "Gagal memperbarui snapshot.", "error"); return; }
+    const ak = j.arusKas || {}, rv = j.revenue || {};
+    const statusBagian = (label, d) => label + ": " + (d.ditulis
+      ? "snapshot ditulis" : ("tidak ditulis — " + (d.alasan || "alasan tidak diketahui")));
+    pm8Pesan("Selesai diproses. " + statusBagian("Arus kas", ak) + " · " + statusBagian("Revenue", rv) + ".", "ok");
     pm8Cache = null; // paksa refetch berikutnya
   } catch (e) {
     pm8Pesan("Gagal memperbarui snapshot: " + e, "error");
