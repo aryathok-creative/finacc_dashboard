@@ -665,6 +665,101 @@
       <div id="sarmutTabel"></div>
     </div>
   </div>
+
+  <!-- ============ HALAMAN 8: PEMELIHARAAN DATA (staf & admin) — Tahap 12w ============ -->
+  <div id="page8Panel" class="hidden">
+
+    <div id="pm8Loading" class="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500">
+      Memuat status pipa data…
+    </div>
+
+    <div id="pm8Isi" class="hidden">
+      <p class="text-xs text-slate-400 mb-4">
+        Halaman ini khusus staf &amp; admin — berisi temuan tentang PIPA DATA (snapshot, trigger,
+        sumber), bukan angka bisnis. Angka bisnis tetap di halaman Penjualan Harian &amp; Arus Kas
+        Harian.
+      </p>
+
+      <!-- pesan hasil aksi (tombol perbarui / hitung ulang) -->
+      <div id="pm8Pesan" class="hidden rounded-xl px-4 py-3 mb-4 text-sm"></div>
+
+      <!-- status dua pipa: arus kas & revenue -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-medium text-slate-700">Pipa Snapshot_ArusKas</p>
+            <span id="pm8StatusArusKas" class="text-xs px-3 py-1 rounded-full"></span>
+          </div>
+          <p id="pm8DetailArusKas" class="text-xs text-slate-500 leading-relaxed"></p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-medium text-slate-700">Pipa Snapshot_Revenue</p>
+            <span id="pm8StatusRevenue" class="text-xs px-3 py-1 rounded-full"></span>
+          </div>
+          <p id="pm8DetailRevenue" class="text-xs text-slate-500 leading-relaxed"></p>
+        </div>
+      </div>
+
+      <!-- trigger & agregat bulanan -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p class="text-sm font-medium text-slate-700 mb-2">Trigger Terjadwal</p>
+          <p class="text-xs text-slate-600 mb-1">Malam (23:00, jaring pengaman): <span id="pm8TriggerMalam" class="font-medium"></span></p>
+          <p class="text-xs text-slate-600">Berkala (tiap 10 menit): <span id="pm8TriggerBerkala" class="font-medium"></span></p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <p class="text-sm font-medium text-slate-700 mb-2">Agregat_Bulanan (roll-up)</p>
+          <p class="text-xs text-slate-600">Total baris: <span id="pm8AgregatTotal" class="font-medium"></span></p>
+          <p class="text-xs text-slate-600">Bulan terakhir tersimpan: <span id="pm8AgregatBulan" class="font-medium"></span></p>
+        </div>
+      </div>
+
+      <!-- tombol perbarui snapshot sekarang -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-1">Perbarui Snapshot Sekarang</p>
+        <p class="text-xs text-slate-500 mb-3">
+          Menjalankan pekerjaan yang sama dengan trigger malam/berkala di luar jadwal — aman
+          dijalankan berkali-kali (data hari yang belum siap otomatis dilewati).
+        </p>
+        <button id="pm8BtnPerbarui" onclick="pm8PerbaruiSnapshot()"
+          class="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">
+          Perbarui snapshot sekarang
+        </button>
+      </div>
+
+      <!-- hitung ulang bulan tertentu (modul-harian §10.2) -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-medium text-slate-700 mb-1">Hitung Ulang Bulan Tertentu</p>
+        <p class="text-xs text-slate-500 mb-3">
+          Agregat bulanan TIDAK PERNAH dibekukan permanen — kalau ada koreksi data lampau (nota
+          backdate), hitung ulang bulan itu di sini. Bulan berjalan sudah dihitung ulang otomatis
+          tiap malam.
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="pm8InputBulan" type="month" class="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+          <button id="pm8BtnHitungUlang" onclick="pm8HitungUlangBulan()"
+            class="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">
+            Hitung ulang bulan ini
+          </button>
+        </div>
+      </div>
+
+      <!-- Registry_Sumber -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-700 mb-2">Registry_Sumber</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-400 border-b border-slate-100">
+            <th class="text-left font-normal pb-2">Tahun</th>
+            <th class="text-left font-normal pb-2">Sumber</th>
+            <th class="text-left font-normal pb-2">File ID</th>
+            <th class="text-left font-normal pb-2">Keterangan</th>
+          </tr></thead>
+          <tbody id="pm8TabelRegistry"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ============ MODAL: TAMBAH USER ============ -->
@@ -787,6 +882,7 @@ let revenueCache = null;     // data halaman 6 — Penjualan Harian (Tahap 12)
 let chartRevenueTren = null; // grafik tren Net Revenue harian
 let chartRevenueRingkasan = null; // grafik batang Ringkasan Periode/MTD/Bulan Lalu (revisi 9 poin, poin 9)
 let chartRevenueSegmen = null;    // grafik donat komposisi Jenis Pasien (revisi 9 poin, poin 9)
+let pm8Cache = null;         // data halaman 8 — Pemeliharaan Data (Tahap 12w, staf/admin saja)
 
 /* ============================================================
  * SESI LOGIN — bertahan lewat refresh (permintaan Doel 4 Agu, poin 5:
@@ -971,7 +1067,7 @@ function handleLogout() {
   // setelah logout akan otomatis login lagi sebagai user sebelumnya.
   _hapusSesi();
   authToken = null; currentUser = null; page = "p1";
-  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null; revenueCache = null;
+  arapCache = null; sarmutCache = null; userCache = null; volSeries = null; series = []; arusKasCache = null; revenueCache = null; pm8Cache = null;
   document.getElementById("dashboardScreen").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("loginEmail").value = "";
@@ -1124,6 +1220,7 @@ const PAGES = [
   { id: "p6", label: "Penjualan Harian",    panel: "page6Panel",  periode: "Memuat…", onOpen: loadRevenueHarian },
   { id: "p5", label: "Arus Kas Harian",     panel: "page5Panel",  periode: "Memuat…", onOpen: loadArusKasHarian },
   { id: "p3", label: "Sasaran Mutu",        panel: "page3Panel",  periode: "Monitoring sasaran mutu 2026",           onOpen: loadSarmut },
+  { id: "p8", label: "Pemeliharaan Data",   panel: "page8Panel",  periode: "Khusus staf & admin — kesehatan pipa data", staffAtauAdmin: true, onOpen: loadPemeliharaanData },
   { id: "p4", label: "Kelola User",         panel: "page4Panel",  periode: "Pengaturan akun pengguna", adminSaja: true, onOpen: loadUsers },
 ];
 
@@ -1137,7 +1234,18 @@ const PAGES = [
  * berikutnya tidak bisa tidak sengaja menaruh sesuatu setelah "p4".
  */
 function pagesTampil() {
-  const admin = String((currentUser && currentUser.role) || "").toLowerCase().includes("admin");
+  const role = String((currentUser && currentUser.role) || "").toLowerCase();
+  const admin = role.includes("admin");
+  // p8 Pemeliharaan Data (Tahap 12w) — SELURUH halaman ini "temuan pipa
+  // data" (PRD §15), tidak untuk Direksi/viewer. Cek "peran lihat-saja"
+  // di sini SENGAJA ditulis ulang (bukan panggil fungsi bersama — frontend
+  // & backend berkas terpisah), tapi harus tetap SAMA ISINYA dengan
+  // `_perananLihatSaja_` di Code.gs. Ini cuma kosmetik; gerbang SUNGGUHAN
+  // ada di server (`_bolehAksesP8_`), jadi ketidaksengajaan di sini tidak
+  // bisa membocorkan data — paling buruk tab tampil tapi permintaan API-nya
+  // ditolak server.
+  const perananLihatSaja = ["direksi", "viewer"].includes(role);
+  const stafAtauAdmin = admin || (role === "staff");
   // Akses tab per user (Tahap 12) — lapisan TAMBAHAN di atas peran, bukan
   // pengganti. Kosong = tidak dibatasi (default, kompatibel dengan user
   // lama). Admin tidak pernah dibatasi lapisan ini, sama seperti di server
@@ -1146,6 +1254,7 @@ function pagesTampil() {
   const daftarHalaman = (currentUser && currentUser.halamanDiizinkan) || [];
   return PAGES.filter(p => {
     if (p.adminSaja) return admin;
+    if (p.staffAtauAdmin && (perananLihatSaja || !stafAtauAdmin)) return false;
     if (admin || !daftarHalaman.length) return true;
     return daftarHalaman.includes(p.id);
   }).sort((a, b) => (a.id === "p4" ? 1 : 0) - (b.id === "p4" ? 1 : 0));
@@ -2053,6 +2162,137 @@ function gambarTrenSarmut(x) {
       },
     },
   });
+}
+
+/* ============================================================
+ * HALAMAN 8 (p8): PEMELIHARAAN DATA — Tahap 12w (M17)
+ * Khusus staf & admin — status KESEHATAN PIPA DATA (snapshot,
+ * trigger, Registry_Sumber), BUKAN angka bisnis (PRD §15,
+ * modul-harian §8). `Code.gs` (`_bolehAksesP8_`) yang menggerbang
+ * SUNGGUHAN; `pagesTampil()` di sini cuma kosmetik.
+ * ============================================================ */
+async function loadPemeliharaanData() {
+  if (pm8Cache) { renderPemeliharaanData(pm8Cache); return; }
+  const j = await apiPost({ action: "getPemeliharaanData" });
+  if (!j.ok) { alert(j.error || "Gagal memuat status pemeliharaan data."); return; }
+  pm8Cache = j;
+  renderPemeliharaanData(j);
+}
+
+const PM8_KELAS_STATUS = {
+  terkini:   "bg-teal-50 text-teal-700 border border-teal-200",
+  normal:    "bg-amber-50 text-amber-800 border border-amber-200",
+  perhatian: "bg-orange-50 text-orange-800 border border-orange-300",
+  kritis:    "bg-red-50 text-red-800 border border-red-300",
+  kosong:    "bg-slate-100 text-slate-500 border border-slate-200",
+};
+const PM8_LABEL_STATUS = {
+  terkini: "✓ Terkini", normal: "Belum diperbarui hari ini",
+  perhatian: "⚠ Perhatian", kritis: "⚠ Kritis", kosong: "Belum ada data",
+};
+
+/** Render satu kartu status pipa (Arus Kas / Revenue) — `prefixId` cocok dengan akhiran id elemen HTML (mis. "ArusKas" -> #pm8StatusArusKas). */
+function pm8RenderPipa(prefixId, d) {
+  const badge = document.getElementById("pm8Status" + prefixId);
+  const detail = document.getElementById("pm8Detail" + prefixId);
+  if (!d.ada) {
+    badge.textContent = PM8_LABEL_STATUS.kosong;
+    badge.className = "text-xs px-3 py-1 rounded-full " + PM8_KELAS_STATUS.kosong;
+    detail.textContent = "Belum ada baris snapshot sama sekali. Jalankan trigger malam/berkala atau tombol \"Perbarui snapshot sekarang\" di bawah.";
+    return;
+  }
+  // levelKeterlambatan dari backend SUDAH "terkini" kalau hariTerlambat <= 0
+  // (_ak5StatusKeterlambatan_/_rv6StatusKeterlambatan_) — tidak perlu dihitung ulang di sini.
+  const level = d.levelKeterlambatan || "terkini";
+  badge.textContent = PM8_LABEL_STATUS[level] || level;
+  badge.className = "text-xs px-3 py-1 rounded-full " + (PM8_KELAS_STATUS[level] || PM8_KELAS_STATUS.kosong);
+
+  const baris = [];
+  baris.push(`Tanggal terakhir: ${d.tanggalTerakhir} · diperbarui ${d.waktuDibuat}`);
+  baris.push(`Total baris: ${d.totalBaris} · baris rusak (dataJson tidak valid): ${d.barisRusak}`);
+  if (d.rusakDiEkorSebelumBarisValid) baris.push(`Baris rusak di EKOR sebelum baris valid terakhir: ${d.rusakDiEkorSebelumBarisValid}`);
+  if (d.labelStatus) baris.push(d.labelStatus);
+  detail.innerHTML = baris.map(b => `<span class="block">${b}</span>`).join("");
+}
+
+function renderPemeliharaanData(j) {
+  document.getElementById("pm8Loading").classList.add("hidden");
+  document.getElementById("pm8Isi").classList.remove("hidden");
+  document.getElementById("periodeLabel").textContent = "Dicek " + j.waktuDicek;
+
+  pm8RenderPipa("ArusKas", j.arusKas);
+  pm8RenderPipa("Revenue", j.revenue);
+
+  document.getElementById("pm8TriggerMalam").textContent =
+    j.trigger.malam.terpasang ? `✓ terpasang (${j.trigger.malam.jumlah})` : "✗ TIDAK terpasang";
+  document.getElementById("pm8TriggerBerkala").textContent =
+    j.trigger.berkala.terpasang ? `✓ terpasang (${j.trigger.berkala.jumlah})` : "✗ TIDAK terpasang";
+
+  document.getElementById("pm8AgregatTotal").textContent = j.agregatBulanan.totalBaris;
+  document.getElementById("pm8AgregatBulan").textContent = j.agregatBulanan.bulanTerakhir || "—";
+
+  document.getElementById("pm8TabelRegistry").innerHTML = j.registrySumber.length
+    ? j.registrySumber.map(r => `<tr class="border-t border-slate-100">
+        <td class="py-1.5">${r.tahun}</td>
+        <td class="py-1.5">${r.sumber}</td>
+        <td class="py-1.5 text-slate-400">${r.fileId}</td>
+        <td class="py-1.5">${r.keterangan || ""}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="4" class="py-3 text-center text-slate-400">Belum ada baris di Registry_Sumber.</td></tr>`;
+}
+
+function pm8Pesan(teks, jenis) {
+  const el = document.getElementById("pm8Pesan");
+  const KELAS = { ok: "bg-teal-50 border border-teal-200 text-teal-800", error: "bg-red-50 border border-red-200 text-red-800" };
+  el.textContent = teks;
+  el.className = "rounded-xl px-4 py-3 mb-4 text-sm " + (KELAS[jenis] || KELAS.ok);
+  el.classList.remove("hidden");
+}
+
+/** Tombol "Perbarui snapshot sekarang" — sama persis dengan pekerjaan trigger malam/berkala (`jalankanSnapshotMalam_`), dipanggil di luar jadwal. Aman diklik berkali-kali. */
+async function pm8PerbaruiSnapshot() {
+  const btn = document.getElementById("pm8BtnPerbarui");
+  btn.disabled = true; btn.textContent = "Memproses…";
+  try {
+    const j = await apiPost({ action: "perbaruiSnapshotSekarang" });
+    // CATATAN (bug ditemukan Doel 19 Agu, uji nyata): `perbaruiSnapshotSekarang`
+    // (= `jalankanSnapshotMalam_`, sudah ada sejak Tahap 10) TIDAK mengirim field
+    // "ok" seperti endpoint p8 lain — bentuk keluarannya APA ADANYA
+    // {arusKas:{ditulis,alasan?}, revenue:{ditulis,alasan?}, rollupBulanBerjalan:{ok,...}}.
+    // Kode lama di sini keliru mengasumsikan SEMUA endpoint punya `ok`, jadi selalu
+    // menampilkan "Gagal" walau prosesnya berjalan normal (paling sering karena data
+    // hari ini memang belum siap — itu status wajar, bukan kegagalan). `j.ok === false`
+    // HANYA muncul kalau `doPost` menangkap exception sungguhan (lihat `Code.gs`) —
+    // itu satu-satunya kasus yang benar-benar gagal.
+    if (j.ok === false) { pm8Pesan(j.error || "Gagal memperbarui snapshot.", "error"); return; }
+    const ak = j.arusKas || {}, rv = j.revenue || {};
+    const statusBagian = (label, d) => label + ": " + (d.ditulis
+      ? "snapshot ditulis" : ("tidak ditulis — " + (d.alasan || "alasan tidak diketahui")));
+    pm8Pesan("Selesai diproses. " + statusBagian("Arus kas", ak) + " · " + statusBagian("Revenue", rv) + ".", "ok");
+    pm8Cache = null; // paksa refetch berikutnya
+  } catch (e) {
+    pm8Pesan("Gagal memperbarui snapshot: " + e, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "Perbarui snapshot sekarang";
+  }
+}
+
+/** Tombol "Hitung ulang bulan [X]" (modul-harian §10.2) — agregat bulanan TIDAK PERNAH dibekukan permanen. */
+async function pm8HitungUlangBulan() {
+  const bulan = document.getElementById("pm8InputBulan").value; // "YYYY-MM" bawaan <input type="month">
+  if (!/^\d{4}-\d{2}$/.test(bulan)) { pm8Pesan("Pilih bulan dulu (format YYYY-MM).", "error"); return; }
+  const btn = document.getElementById("pm8BtnHitungUlang");
+  btn.disabled = true; btn.textContent = "Memproses…";
+  try {
+    const j = await apiPost({ action: "hitungUlangBulanRevenue", bulan: bulan });
+    if (!j.ok) { pm8Pesan(j.pesan || j.error || ("Gagal menghitung ulang bulan " + bulan + "."), "error"); return; }
+    pm8Pesan(`Bulan ${bulan} dihitung ulang: net ${fmtRp(j.net)}, ${j.jumlahNota} nota (${j.aksi}).`, "ok");
+    pm8Cache = null;
+  } catch (e) {
+    pm8Pesan("Gagal menghitung ulang: " + e, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "Hitung ulang bulan ini";
+  }
 }
 
 /* ============================================================
