@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Finance Dashboard — PT Persada Medika Utama</title>
+<title>[UJI] Finance Dashboard — PT Persada Medika Utama</title>
+
+<!-- ============================================================
+     BANNER LINGKUNGAN UJI — jangan disalin ke produksi
+     Fungsinya satu: mencegah tertukarnya tab uji dengan tab
+     produksi saat keduanya dibuka berdampingan.
+     ============================================================ -->
+<div id="bannerUji" class="sticky top-0 z-50 bg-amber-400 text-amber-950 text-center
+     text-sm font-semibold py-2 px-4 shadow-sm">
+  ⚠️ LINGKUNGAN UJI — angka di halaman ini tidak boleh dipakai untuk pelaporan
+</div>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Chart.js: utama dari jsdelivr; kalau gagal, coba cdnjs (beberapa jaringan memblokir salah satunya) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
@@ -274,6 +284,41 @@
     <div id="page6Kosong" class="hidden bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500"></div>
 
     <div id="page6Isi" class="hidden">
+      <!-- TAHAP 13 — kontrol pilih tanggal/rentang (mengganti langsung cara lama
+           yang selalu menampilkan snapshot terakhir saja — disetujui Doel 19 Agu
+           2026 lewat mockup-p6-tahap13-drilldown-filter.html). Default tetap
+           "Terkini" seperti sebelumnya; Doel bisa pindah ke satu tanggal tertentu
+           di masa lalu, atau ke rentang tanggal (dari–sampai). -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+        <p class="text-xs font-medium text-slate-500 mb-2">Mode tampilan:</p>
+        <div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm mb-3" id="rv6ModeBtns"></div>
+
+        <div id="rv6KontrolTanggal" class="hidden items-center gap-2 flex-wrap">
+          <label class="text-sm text-slate-600">Tanggal:</label>
+          <input id="rv6InputTanggal" type="date" class="border border-slate-300 rounded-lg px-2 py-1 text-sm" />
+          <button onclick="tampilkanRevenueTanggal()" class="bg-teal-600 text-white text-sm px-3 py-1.5 rounded-lg">Tampilkan</button>
+        </div>
+        <div id="rv6KontrolRentang" class="hidden items-center gap-2 flex-wrap">
+          <label class="text-sm text-slate-600">Dari:</label>
+          <input id="rv6InputTglAwal" type="date" class="border border-slate-300 rounded-lg px-2 py-1 text-sm" />
+          <label class="text-sm text-slate-600">Sampai:</label>
+          <input id="rv6InputTglAkhir" type="date" class="border border-slate-300 rounded-lg px-2 py-1 text-sm" />
+          <button onclick="tampilkanRevenueRentang()" class="bg-teal-600 text-white text-sm px-3 py-1.5 rounded-lg">Tampilkan</button>
+        </div>
+      </div>
+
+      <!-- badge status drill-down TANGGAL TERTENTU (persis/gabungan/gabungan-tanpa-rincian/tidak-ada/rusak) —
+           mengiringi rv6KontenTerkini (kasus 'persis', tampilan lama dipakai ulang)
+           MAUPUN rv6HasilDrilldown (kasus lain, tampilan ringkas) -->
+      <div id="rv6DrilldownBadge" class="hidden rounded-xl px-4 py-3 mb-4 text-sm"></div>
+
+      <!-- hasil drill-down TANGGAL (kasus gabungan/tidak-ada/rusak) ATAU RENTANG —
+           dibangun via JS, disembunyikan di mode Terkini & di kasus 'persis' -->
+      <div id="rv6HasilDrilldown" class="hidden"></div>
+
+      <!-- ============ konten mode TERKINI (tampilan asli, dipakai ulang juga
+           untuk drill-down tanggal kasus 'persis' — lihat renderHasilTanggalDrilldown) ============ -->
+      <div id="rv6KontenTerkini">
       <!-- banner data belum diperbarui (modul-harian §2.1, "berlaku sama untuk revenue harian") —
            warna & ambang SENGAJA sama seperti p5 (Tahap 11k), lihat rv6Banner di JS -->
       <div id="rv6Banner" class="hidden rounded-xl px-4 py-3 mb-4 text-sm font-medium"></div>
@@ -321,8 +366,10 @@
         </div>
       </div>
 
-      <!-- grafik tren net revenue (beberapa snapshot terakhir) -->
-      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+      <!-- grafik tren net revenue (beberapa snapshot terakhir) — dibungkus rv6TrenCard
+           supaya bisa disembunyikan saat drill-down tanggal kasus 'persis' (Tahap 13d):
+           tren 30-snapshot ini bukan untuk tanggal yang dipilih, jadi tidak relevan. -->
+      <div id="rv6TrenCard" class="bg-white border border-slate-200 rounded-xl p-4 mb-5">
         <p class="text-sm font-medium text-slate-700 mb-1">Tren Net Revenue Harian</p>
         <p class="text-xs text-slate-500 mb-3">Titik ◆ oranye = snapshot yang mewakili LEBIH dari 1 hari (akhir pekan/hari libur digabung) — bukan lonjakan 1 hari. Arahkan kursor ke titik untuk rincian rentang tanggal.</p>
         <div id="rv6TrenWrap" class="relative" style="height:220px">
@@ -426,6 +473,7 @@
         <div id="rv6PipaData" class="space-y-1"></div>
         <p id="rv6TorchKet" class="text-xs text-slate-400 mt-2"></p>
       </div>
+      </div><!-- /rv6KontenTerkini -->
     </div>
   </div>
 
@@ -859,7 +907,28 @@
 /* ============================================================
  * KONFIGURASI
  * ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbz5RspCLhpVa432MoXH_iZ_8gJi7I8pKZvPy5g8InVlu_r_9-xE2Vem3nDAU6UTLrBu/exec";
+/* ============================================================
+ * ⚠️ LINGKUNGAN UJI — BUKAN PRODUKSI
+ * Tempel URL /exec milik deployment UJI di bawah ini.
+ * URL produksi DILARANG dipakai di berkas ini.
+ * ============================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbxPkHUbgkILoKPPO5yZ2AOd5GjmJLLWNBszELYGMrwLXjUO1yYiXAKVTKVvUttZXSijjw/exec";
+
+/* Penjaga: berhenti dengan pesan jelas kalau URL belum diisi,
+   supaya tidak muncul error jaringan yang membingungkan. */
+if (API_URL.indexOf("GANTI_DENGAN") === 0) {
+  document.addEventListener("DOMContentLoaded", function () {
+    document.body.innerHTML =
+      '<div style="max-width:640px;margin:80px auto;padding:28px;border:2px solid #f59e0b;' +
+      'border-radius:14px;background:#fffbeb;font-family:-apple-system,Segoe UI,Roboto,sans-serif">' +
+      '<h1 style="margin:0 0 12px;font-size:18px;color:#92400e">API_URL lingkungan uji belum diisi</h1>' +
+      '<p style="margin:0 0 10px;color:#78350f;line-height:1.6">Buka <code>uji/index.html</code>, ' +
+      'cari <code>const API_URL</code>, lalu ganti dengan URL <code>/exec</code> milik deployment ' +
+      '<b>UJI</b> — bukan URL produksi.</p>' +
+      '<p style="margin:0;color:#78350f;line-height:1.6">Langkahnya ada di ' +
+      '<code>02_Hasil/PANDUAN-LINGKUNGAN-UJI_2026-07-29_v1.md</code> bagian 3.</p></div>';
+  });
+}
 
 let authToken = null;
 let currentUser = null;
@@ -882,6 +951,8 @@ let revenueCache = null;     // data halaman 6 — Penjualan Harian (Tahap 12)
 let chartRevenueTren = null; // grafik tren Net Revenue harian
 let chartRevenueRingkasan = null; // grafik batang Ringkasan Periode/MTD/Bulan Lalu (revisi 9 poin, poin 9)
 let chartRevenueSegmen = null;    // grafik donat komposisi Jenis Pasien (revisi 9 poin, poin 9)
+let chartRevenueRentang = null;   // TAHAP 13 — grafik tren mode "Rentang tanggal" (drill-down)
+let rv6Mode = "terkini";          // TAHAP 13 — "terkini" | "tanggal" | "rentang", state kontrol drill-down p6
 let pm8Cache = null;         // data halaman 8 — Pemeliharaan Data (Tahap 12w, staf/admin saja)
 
 /* ============================================================
@@ -2563,11 +2634,24 @@ function renderRincianChart(inflow, outflow) {
  * ============================================================ */
 async function loadRevenueHarian() {
   try {
-    if (revenueCache) { renderRevenueHarian(revenueCache); return; }
+    // TAHAP 13 — setiap kali halaman ini DIBUKA (bukan cuma dimuat pertama
+    // kali), balik dulu ke mode "Terkini" default — konsisten dgn perilaku
+    // lama (Doel selalu lihat data terakhir dulu), drill-down tanggal/rentang
+    // yang sedang dilihat TIDAK dibawa lintas kunjungan halaman.
+    rv6Mode = "terkini";
+    renderRv6ModeBtns();
+    document.getElementById("rv6HasilDrilldown").classList.add("hidden");
+    document.getElementById("rv6DrilldownBadge").classList.add("hidden");
+    document.getElementById("rv6KontenTerkini").classList.remove("hidden");
+    const trenCardAwal = document.getElementById("rv6TrenCard");
+    if (trenCardAwal) trenCardAwal.classList.remove("hidden");
+
+    if (revenueCache) { renderRevenueHarian(revenueCache); rv6SiapkanInputTanggalDefault(); return; }
     const j = await apiPost({ action: "getRevenueHarianDashboard" });
     if (!j.ok) { alert(j.error || "Gagal memuat data penjualan harian."); return; }
     revenueCache = j;
     renderRevenueHarian(j);
+    rv6SiapkanInputTanggalDefault();
   } catch (e) {
     // Kalau ada error saat MERENDER (bukan saat fetch — itu sudah ditangani
     // di atas), tetap tampilkan pesan jelas, JANGAN biarkan halaman diam
@@ -2575,6 +2659,290 @@ async function loadRevenueHarian() {
     console.error("Gagal merender Penjualan Harian:", e);
     alert("Terjadi error saat menampilkan halaman Penjualan Harian: " + e.message + "\n\nBuka Console browser (F12) untuk detail, lalu laporkan pesannya.");
   }
+}
+
+/* ============================================================
+ * TAHAP 13 — Drill-down & filter periode bebas (halaman Penjualan Harian).
+ * Disetujui Doel 19 Agu 2026 lewat mockup-p6-tahap13-drilldown-filter.html
+ * (tata letak kontrol "sudah pas", copy disederhanakan, grafik rentang pakai
+ * garis). Backend: endpoint_p6_revenue_2026-08-01_v1.gs Tahap 13a/13b/13c
+ * (_rv6CariBarisTanggal_/_rv6AgregasiRentang_/_rv6BentukTanggalKeluaran_),
+ * action getRevenueHarianTanggal/getRevenueHarianRentang (Code.gs v11).
+ * ============================================================ */
+
+const RV6_MODES = [
+  { id: "terkini", label: "Terkini" },
+  { id: "tanggal", label: "Tanggal tertentu" },
+  { id: "rentang", label: "Rentang tanggal" },
+];
+
+/** Gambar ulang 3 tombol mode + tampilkan/sembunyikan baris input yang sesuai. */
+function renderRv6ModeBtns() {
+  const wrap = document.getElementById("rv6ModeBtns");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  RV6_MODES.forEach((m, i) => {
+    const b = document.createElement("button");
+    b.textContent = m.label;
+    b.className = "px-4 py-1.5 " + (i > 0 ? "border-l border-slate-200 " : "") +
+      (rv6Mode === m.id ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50");
+    b.onclick = () => ubahModeRevenue(m.id);
+    wrap.appendChild(b);
+  });
+  const kt = document.getElementById("rv6KontrolTanggal");
+  const kr = document.getElementById("rv6KontrolRentang");
+  if (kt) kt.className = "items-center gap-2 flex-wrap " + (rv6Mode === "tanggal" ? "flex" : "hidden");
+  if (kr) kr.className = "items-center gap-2 flex-wrap " + (rv6Mode === "rentang" ? "flex" : "hidden");
+}
+
+/**
+ * Pindah mode tampilan. Klik "Terkini" LANGSUNG mengembalikan tampilan lama
+ * (dari revenueCache, tanpa fetch ulang). Klik "Tanggal tertentu"/"Rentang
+ * tanggal" HANYA membuka baris input — hasil drill-down baru diambil & tampil
+ * setelah tombol "Tampilkan" ditekan (supaya tidak ada jeda layar kosong).
+ */
+function ubahModeRevenue(m) {
+  rv6Mode = m;
+  renderRv6ModeBtns();
+  if (m === "terkini") {
+    document.getElementById("rv6HasilDrilldown").classList.add("hidden");
+    document.getElementById("rv6DrilldownBadge").classList.add("hidden");
+    document.getElementById("rv6KontenTerkini").classList.remove("hidden");
+    const trenCard = document.getElementById("rv6TrenCard");
+    if (trenCard) trenCard.classList.remove("hidden");
+    if (revenueCache) renderRevenueHarian(revenueCache);
+  } else {
+    rv6SiapkanInputTanggalDefault();
+  }
+}
+
+/** Isi awal input tanggal/rentang = tanggal pelaporan snapshot terakhir (kalau kosong) — supaya Doel tidak mulai dari kolom kosong. */
+function rv6SiapkanInputTanggalDefault() {
+  const t = revenueCache && revenueCache.tanggal;
+  if (!t) return;
+  const inTgl = document.getElementById("rv6InputTanggal");
+  const inAwal = document.getElementById("rv6InputTglAwal");
+  const inAkhir = document.getElementById("rv6InputTglAkhir");
+  if (inTgl && !inTgl.value) inTgl.value = t;
+  if (inAwal && !inAwal.value) inAwal.value = t;
+  if (inAkhir && !inAkhir.value) inAkhir.value = t;
+}
+
+/** Tombol "Tampilkan" mode Tanggal tertentu — panggil action getRevenueHarianTanggal (Tahap 13c). */
+async function tampilkanRevenueTanggal() {
+  const v = document.getElementById("rv6InputTanggal").value;
+  if (!v) { alert("Pilih tanggal dulu."); return; }
+  try {
+    const j = await apiPost({ action: "getRevenueHarianTanggal", tanggal: v });
+    if (!j.ok) { alert(j.error || "Gagal memuat data tanggal ini."); return; }
+    renderHasilTanggalDrilldown(j);
+  } catch (e) {
+    console.error("Gagal memuat drill-down tanggal:", e);
+    alert("Terjadi error saat memuat tanggal ini: " + e.message + "\n\nBuka Console browser (F12) untuk detail.");
+  }
+}
+
+/** Tombol "Tampilkan" mode Rentang tanggal — panggil action getRevenueHarianRentang (Tahap 13c). */
+async function tampilkanRevenueRentang() {
+  const a = document.getElementById("rv6InputTglAwal").value;
+  const b = document.getElementById("rv6InputTglAkhir").value;
+  if (!a || !b) { alert("Isi tanggal Dari dan Sampai dulu."); return; }
+  try {
+    const j = await apiPost({ action: "getRevenueHarianRentang", tglAwal: a, tglAkhir: b });
+    renderHasilRentangDrilldown(j);
+  } catch (e) {
+    console.error("Gagal memuat drill-down rentang:", e);
+    alert("Terjadi error saat memuat rentang ini: " + e.message + "\n\nBuka Console browser (F12) untuk detail.");
+  }
+}
+
+// Label & warna badge per nilai `cocok` dari backend (_rv6CariBarisTanggal_) —
+// copy bahasa sederhana disetujui Doel (revisi mockup 19 Agu 2026, skill ux-copy).
+const RV6_BADGE_LABEL = {
+  persis: "✓ Rincian lengkap tersedia",
+  gabungan: "ⓘ Bagian dari laporan gabungan (akhir pekan/hari libur)",
+  "gabungan-tanpa-rincian": "ⓘ Total gabungan beberapa hari",
+  "tidak-ada": "— Belum ada data",
+  rusak: "✕ Data bermasalah",
+};
+const RV6_BADGE_WARNA = {
+  persis: "bg-teal-50 border border-teal-300 text-teal-800",
+  gabungan: "bg-amber-50 border border-amber-300 text-amber-800",
+  "gabungan-tanpa-rincian": "bg-orange-50 border border-orange-300 text-orange-800",
+  "tidak-ada": "bg-slate-100 border border-slate-300 text-slate-600",
+  rusak: "bg-red-50 border border-red-300 text-red-800",
+};
+
+/**
+ * Render hasil drill-down SATU TANGGAL. Kasus 'persis' SENGAJA memakai ULANG
+ * seluruh tampilan "Terkini" yang sudah ada (renderRevenueHarian + semua
+ * fungsi turunannya: KPI, ringkasan, dimensi, kontributor, ARA, TORCH, pipa
+ * data) — TIDAK menduplikasi tabel/kartu, sesuai pelajaran proyek ini
+ * (Kekeliruan #12/#13: jangan bikin jalur kode kedua untuk hal yang sama).
+ * Grafik tren 30-snapshot (rv6TrenCard) disembunyikan karena datanya bukan
+ * untuk tanggal yang dipilih. Kasus lain (gabungan/gabungan-tanpa-rincian/
+ * tidak-ada/rusak) TIDAK punya rincian dimensi dari backend — tampilan
+ * ringkas 2 kartu KPI saja, lewat rv6HasilDrilldown.
+ */
+function renderHasilTanggalDrilldown(j) {
+  const kontenTerkini = document.getElementById("rv6KontenTerkini");
+  const hasil = document.getElementById("rv6HasilDrilldown");
+  const badge = document.getElementById("rv6DrilldownBadge");
+  const trenCard = document.getElementById("rv6TrenCard");
+
+  const rentangTeks = j.periodeGabungan
+    ? " (gabungan " + fmtTglSlash(j.periodeGabungan.tglAwal) + " – " + fmtTglSlash(j.periodeGabungan.tglAkhir) + ")"
+    : "";
+  badge.className = "rounded-xl px-4 py-3 mb-4 text-sm " + (RV6_BADGE_WARNA[j.cocok] || RV6_BADGE_WARNA["tidak-ada"]);
+  badge.innerHTML = "<b>" + (RV6_BADGE_LABEL[j.cocok] || j.cocok) + "</b> — " + fmtTglSlash(j.tanggal) + rentangTeks +
+    (j.catatan ? "<p class=\"mt-1\">" + j.catatan + "</p>" : "");
+  badge.classList.remove("hidden");
+  if (trenCard) trenCard.classList.add("hidden");
+
+  if (j.cocok === "persis") {
+    hasil.classList.add("hidden");
+    kontenTerkini.classList.remove("hidden");
+    renderRevenueHarian({
+      ok: true, adaData: true, tanggal: j.tanggal,
+      waktuDibuat: null, terkini: false, hariTerlambat: null,
+      levelKeterlambatan: null, labelStatus: null,
+      periode: j.periode, ringkasan: j.ringkasan, dimensi: j.dimensi,
+      anomaliBisnis: j.anomaliBisnis, tren: [],
+      temuanPipaData: j.temuanPipaData, torchDitemukan: j.torchDitemukan,
+      waktuEksekusiMs: j.waktuEksekusiMs,
+    });
+    // renderRevenueHarian menulis ulang rv6TrenCard-nya sendiri lewat
+    // renderTrenRevenue([]) — pastikan tetap disembunyikan SETELAH itu.
+    if (trenCard) trenCard.classList.add("hidden");
+    return;
+  }
+
+  kontenTerkini.classList.add("hidden");
+  hasil.classList.remove("hidden");
+
+  if (j.cocok === "gabungan" || j.cocok === "gabungan-tanpa-rincian") {
+    const labelKet = j.cocok === "gabungan-tanpa-rincian" ? " (total periode)" : " (hari ini)";
+    hasil.innerHTML = `<div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
+        <p class="text-xs text-teal-700">Revenue Bersih${labelKet}</p>
+        <p class="text-xl font-semibold text-teal-800 mt-1">${fmtRp(j.net)}</p>
+      </div>
+      <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <p class="text-xs text-blue-700">Jumlah Nota${labelKet}</p>
+        <p class="text-xl font-semibold text-blue-800 mt-1">${(j.jumlahNota ?? 0).toLocaleString("id-ID")}</p>
+      </div>
+    </div>
+    <p class="text-xs text-slate-400 mb-4">Rincian per departemen/unit/pengirim/segmen belum bisa ditampilkan untuk tanggal seperti ini.</p>`;
+  } else {
+    // 'tidak-ada' / 'rusak' — badge di atas sudah cukup jelas, tidak ada kartu tambahan.
+    hasil.innerHTML = "";
+  }
+}
+
+/**
+ * Render hasil drill-down RENTANG tanggal — cakupan disepakati Doel (PRD §13
+ * no.19): total net + jumlah nota + grafik tren harian saja, rincian per
+ * dimensi menyusul di tahap berikutnya (bukan dihilangkan diam-diam — ada
+ * catatan eksplisit di bawah grafik).
+ */
+function renderHasilRentangDrilldown(j) {
+  const kontenTerkini = document.getElementById("rv6KontenTerkini");
+  const hasil = document.getElementById("rv6HasilDrilldown");
+  const badge = document.getElementById("rv6DrilldownBadge");
+  const trenCard = document.getElementById("rv6TrenCard");
+
+  badge.classList.add("hidden");
+  if (trenCard) trenCard.classList.add("hidden");
+  kontenTerkini.classList.add("hidden");
+  hasil.classList.remove("hidden");
+
+  if (!j.ok) {
+    hasil.innerHTML = `<div class="rounded-xl px-4 py-3 mb-4 text-sm bg-red-50 border border-red-300 text-red-800">
+      <b>✕ Rentang tidak valid.</b> ${j.pesan || ""}
+    </div>`;
+    return;
+  }
+  if (!j.titikHarian || !j.titikHarian.length) {
+    hasil.innerHTML = `<div class="rounded-xl px-4 py-3 mb-4 text-sm bg-slate-100 border border-slate-300 text-slate-600">
+      <b>— Tidak ada data</b> di rentang ${fmtTglSlash(j.tglAwal)} – ${fmtTglSlash(j.tglAkhir)}.
+    </div>`;
+    return;
+  }
+
+  let html = "";
+  if (j.catatan) {
+    html += `<div class="rounded-xl px-4 py-3 mb-4 text-sm bg-amber-50 border border-amber-300 text-amber-800">
+      <b>ⓘ Catatan.</b> ${j.catatan}
+    </div>`;
+  }
+  html += `<div class="grid grid-cols-2 gap-4 mb-4">
+    <div class="bg-teal-50 border border-teal-100 rounded-xl p-4">
+      <p class="text-xs text-teal-700">Total Revenue Bersih — ${fmtTglSlash(j.tglAwal)} s/d ${fmtTglSlash(j.tglAkhir)}</p>
+      <p class="text-xl font-semibold text-teal-800 mt-1">${fmtRp(j.totalNet)}</p>
+    </div>
+    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+      <p class="text-xs text-blue-700">Total Jumlah Nota</p>
+      <p class="text-xl font-semibold text-blue-800 mt-1">${(j.totalJumlahNota ?? 0).toLocaleString("id-ID")}</p>
+    </div>
+  </div>
+  <div class="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+    <p class="text-sm font-medium text-slate-700 mb-1">Tren Net Revenue per Hari</p>
+    <p class="text-xs text-slate-500 mb-3">Titik ◆ oranye = mewakili LEBIH dari 1 hari (data lama, akhir pekan/libur digabung). Arahkan kursor ke titik untuk rincian.</p>
+    <div class="relative" style="height:220px"><canvas id="rv6ChartRentang"></canvas></div>
+  </div>
+  <p class="text-xs text-slate-400 mb-4">Rincian per departemen/unit/segmen/pengirim untuk rentang tanggal akan menyusul di tahap berikutnya.</p>`;
+
+  hasil.innerHTML = html;
+  renderChartRentangRevenue(j.titikHarian);
+}
+
+/** Grafik garis tren harian mode Rentang — pola SAMA PERSIS dgn renderTrenRevenue (titik gabungan = wajik oranye lebih besar), supaya konsisten dgn grafik tren di mode Terkini. */
+function renderChartRentangRevenue(titik) {
+  if (typeof Chart === "undefined") return;
+  const canvas = document.getElementById("rv6ChartRentang");
+  if (!canvas) return;
+  if (chartRevenueRentang) chartRevenueRentang.destroy();
+
+  const warnaTitik = titik.map(t => (t.hari && t.hari > 1) ? "#d97706" : "#0d9488");
+  const ukuranTitik = titik.map(t => (t.hari && t.hari > 1) ? 8 : 3);
+  const bentukTitik = titik.map(t => (t.hari && t.hari > 1) ? "rectRot" : "circle");
+  const labelSumbu = titik.map(t => (t.hari && t.hari > 1 && t.tglAwal)
+    ? fmtTglPendek(t.tglAwal) + "–" + fmtTglPendek(t.tanggal)
+    : fmtTglPendek(t.tanggal));
+
+  chartRevenueRentang = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: labelSumbu,
+      datasets: [{
+        label: "Net Revenue",
+        data: titik.map(t => Math.round(t.net / 1e6 * 10) / 10),
+        borderColor: "#0d9488",
+        backgroundColor: "#0d948822",
+        fill: true,
+        tension: 0.3,
+        pointRadius: ukuranTitik,
+        pointBackgroundColor: warnaTitik,
+        pointBorderColor: warnaTitik,
+        pointStyle: bentukTitik,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => {
+          const t = titik[c.dataIndex];
+          if (t.hari && t.hari > 1) {
+            return ["Rp " + t.net.toLocaleString("id-ID") + " (TOTAL " + t.hari + " hari)", "Rentang: " + fmtTglPendek(t.tglAwal) + "–" + fmtTglPendek(t.tanggal)];
+          }
+          return "Rp " + t.net.toLocaleString("id-ID") + (t.hari === null ? "" : " (1 hari)");
+        } } },
+      },
+      scales: { y: { ticks: { callback: v => v.toLocaleString("id-ID") + " jt" } } },
+    },
+  });
 }
 
 /** 'YYYY-MM-DD' -> label bulan pendek Indonesia + 2 digit tahun, mis. "Jul-26". Dipakai untuk header kolom MTD/Bulan Lalu (modul-harian §6). */
@@ -2627,7 +2995,10 @@ function renderTanggalAcuanRevenue(j) {
   if (!periode || !periode.tglAwal) {
     acuanEl.textContent = "data transaksi tanggal " + fmtTglSlash(j.tanggal);
     pelaporanEl.textContent = "—";
-    waktuKet.textContent = "Snapshot ditulis " + (j.waktuDibuat || "—") + ".";
+    // TAHAP 13: j.waktuDibuat sengaja kosong untuk hasil drill-down tanggal
+    // tertentu (endpoint getRevenueHarianTanggal tidak mengirim field ini) —
+    // jangan tampilkan "Snapshot ditulis —." yang membingungkan, cukup kosongkan baris.
+    waktuKet.textContent = j.waktuDibuat ? ("Snapshot ditulis " + j.waktuDibuat + ".") : "";
     catatan.classList.add("hidden");
     return;
   }
