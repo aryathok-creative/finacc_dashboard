@@ -3,17 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>[UJI] Finance Dashboard — PT Persada Medika Utama</title>
-
-<!-- ============================================================
-     BANNER LINGKUNGAN UJI — jangan disalin ke produksi
-     Fungsinya satu: mencegah tertukarnya tab uji dengan tab
-     produksi saat keduanya dibuka berdampingan.
-     ============================================================ -->
-<div id="bannerUji" class="sticky top-0 z-50 bg-amber-400 text-amber-950 text-center
-     text-sm font-semibold py-2 px-4 shadow-sm">
-  ⚠️ LINGKUNGAN UJI — angka di halaman ini tidak boleh dipakai untuk pelaporan
-</div>
+<title>Finance Dashboard — PT Persada Medika Utama</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Chart.js: utama dari jsdelivr; kalau gagal, coba cdnjs (beberapa jaringan memblokir salah satunya) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
@@ -907,28 +897,7 @@
 /* ============================================================
  * KONFIGURASI
  * ============================================================ */
-/* ============================================================
- * ⚠️ LINGKUNGAN UJI — BUKAN PRODUKSI
- * Tempel URL /exec milik deployment UJI di bawah ini.
- * URL produksi DILARANG dipakai di berkas ini.
- * ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxPkHUbgkILoKPPO5yZ2AOd5GjmJLLWNBszELYGMrwLXjUO1yYiXAKVTKVvUttZXSijjw/exec";
-
-/* Penjaga: berhenti dengan pesan jelas kalau URL belum diisi,
-   supaya tidak muncul error jaringan yang membingungkan. */
-if (API_URL.indexOf("GANTI_DENGAN") === 0) {
-  document.addEventListener("DOMContentLoaded", function () {
-    document.body.innerHTML =
-      '<div style="max-width:640px;margin:80px auto;padding:28px;border:2px solid #f59e0b;' +
-      'border-radius:14px;background:#fffbeb;font-family:-apple-system,Segoe UI,Roboto,sans-serif">' +
-      '<h1 style="margin:0 0 12px;font-size:18px;color:#92400e">API_URL lingkungan uji belum diisi</h1>' +
-      '<p style="margin:0 0 10px;color:#78350f;line-height:1.6">Buka <code>uji/index.html</code>, ' +
-      'cari <code>const API_URL</code>, lalu ganti dengan URL <code>/exec</code> milik deployment ' +
-      '<b>UJI</b> — bukan URL produksi.</p>' +
-      '<p style="margin:0;color:#78350f;line-height:1.6">Langkahnya ada di ' +
-      '<code>02_Hasil/PANDUAN-LINGKUNGAN-UJI_2026-07-29_v1.md</code> bagian 3.</p></div>';
-  });
-}
+const API_URL = "https://script.google.com/macros/s/AKfycbz5RspCLhpVa432MoXH_iZ_8gJi7I8pKZvPy5g8InVlu_r_9-xE2Vem3nDAU6UTLrBu/exec";
 
 let authToken = null;
 let currentUser = null;
