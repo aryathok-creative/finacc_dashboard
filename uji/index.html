@@ -252,7 +252,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
       <div class="bg-white border border-slate-200 rounded-xl p-4">
-        <p class="text-sm font-medium text-slate-700 mb-3">Umur Piutang (AR Aging)</p>
+        <p class="text-sm font-medium text-slate-700 mb-3">Umur Piutang (AR Aging — berdasarkan jatuh tempo)</p>
         <div id="arBars"></div>
       </div>
       <div class="bg-white border border-slate-200 rounded-xl p-4">
@@ -1412,9 +1412,14 @@ function renderArap(j) {
   document.getElementById("apDue").textContent = fmtJt(due, 1);
   document.getElementById("apDuePct").textContent = ap.total ? fmtPct(due / ap.total * 100) + "% dari total hutang" : "—";
 
-  const AR_COLORS = ["bg-teal-600", "bg-amber-400", "bg-orange-500", "bg-red-600"];
+  const AR_COLORS = ["bg-teal-600", "bg-amber-300", "bg-amber-500", "bg-orange-500", "bg-red-600"];
   const AP_COLORS = ["bg-red-600", "bg-amber-400", "bg-teal-600"];
   agingBars("arBars", ar, AR_COLORS);
+  if (ar.basis === "tab-aging") {
+    document.getElementById("arBars").insertAdjacentHTML("beforeend", '<p class="text-xs text-amber-600 mt-2">Rincian per jatuh tempo belum terbaca — bucket di atas dari tab AR Aging (0-30 hari masih termasuk yang belum jatuh tempo).</p>');
+  } else if (ar.basis === "jatuh-tempo" && Math.abs(ar.selisihRekon || 0) > 0.1) {
+    document.getElementById("arBars").insertAdjacentHTML("beforeend", `<p class="text-xs text-amber-600 mt-2">Perhatian: total bucket berbeda ${fmtJt(ar.selisihRekon, 1)} dari total tab AR Aging.</p>`);
+  }
   agingBars("apBars", ap, AP_COLORS);
   topTable("arTop", ar.top);
   topTable("apTop", ap.top);
