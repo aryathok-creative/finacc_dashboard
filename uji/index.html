@@ -446,6 +446,22 @@
         <p id="rv6ARASnapshotLamaKet" class="hidden text-[11px] text-amber-700/80 mt-2"></p>
       </div>
 
+      <!-- Highlight IVtamins — diminta Doel 5 Okt 2026, pola SAMA dengan Highlight ARA.
+           Sumber: departemen IVTAMINS di Departemen_Harian (bukan kolom khusus). -->
+      <div class="bg-emerald-50/40 border border-emerald-200 border-l-4 border-l-emerald-600 rounded-xl p-4 mb-5 overflow-x-auto">
+        <p class="text-sm font-medium text-emerald-900 mb-2">Highlight IVtamins</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-emerald-700/70 border-b border-emerald-200">
+            <th class="text-left font-normal pb-2">Metrik</th>
+            <th class="text-right font-normal pb-2">Periode</th>
+            <th class="text-right font-normal pb-2">MTD</th>
+            <th class="text-right font-normal pb-2">YTD</th>
+          </tr></thead>
+          <tbody id="rv6TabelIvtamins"></tbody>
+        </table>
+        <p id="rv6IvtaminsKet" class="hidden text-[11px] text-emerald-700/80 mt-2"></p>
+      </div>
+
       <!-- Highlight Panel TORCH — poin 8, pola pakem laporan lama: qty & net
            Periode + MTD per test (nilai 0 tetap tampil) + baris Total. Nama
            test DITEMUKAN OTOMATIS oleh backend (§0.2 guard IgM/IgG), bukan
@@ -3154,6 +3170,7 @@ function renderRevenueHarian(j) {
   renderDimensiRevenue(j.dimensi, bucketAnomali);
   renderKontributorTerbesar(j.dimensi && j.dimensi.pengirim, mtd.net, bucketAnomali.pengirim);
   renderHighlightARA(j.ringkasan);
+  renderHighlightIvtamins(j.ringkasan);
   renderHighlightTorch(j.ringkasan);
   renderPipaDataRevenue(j);
 }
@@ -3448,6 +3465,30 @@ function renderHighlightARA(ringkasan) {
   const ket = document.getElementById("rv6ARASnapshotLamaKet");
   if (!dataBaruAda || !ytdAda) {
     ket.textContent = "Sebagian kolom (Hari Aktif / Rata-rata per Hari Aktif / YTD) belum bisa dihitung — snapshot ini ditulis SEBELUM field itu ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
+    ket.classList.remove("hidden");
+  } else ket.classList.add("hidden");
+}
+
+/**
+ * Highlight IVtamins (5 Okt 2026) — pola sama dgn renderHighlightARA. `ringkasan.ivtamins`
+ * = {periode, mtd, ytd}, masing2 {net, jumlahNota, hariAktif}. `undefined` (BUKAN 0)
+ * berarti snapshot LAMA yang ditulis sebelum fitur ini — tampil "—" + catatan, bukan Rp 0.
+ */
+function renderHighlightIvtamins(ringkasan) {
+  const iv = ringkasan.ivtamins;
+  const ada = iv !== undefined && iv !== null;
+  const jendela = [["periode", ringkasan.periode], ["mtd", ringkasan.mtd], ["ytd", ringkasan.ytd]];
+  const sel = (fn) => jendela.map(([k, ring]) => {
+    const d = ada ? iv[k] : null;
+    return `<td class="py-1.5 text-right">${d && ring ? fn(d, ring) : "—"}</td>`;
+  }).join("");
+  document.getElementById("rv6TabelIvtamins").innerHTML = `
+    <tr class="border-t border-emerald-200"><td class="py-1.5 text-emerald-800">Revenue Net</td>${sel(d => fmtRp(d.net))}</tr>
+    <tr class="border-t border-emerald-200"><td class="py-1.5 text-emerald-800">Hari Aktif</td>${sel((d, r) => d.hariAktif + " dari " + r.jumlahHari + " hari")}</tr>
+    <tr class="border-t border-emerald-200 font-semibold text-emerald-900"><td class="py-1.5">Rata-rata per Hari Aktif</td>${sel(d => fmtRp(d.hariAktif > 0 ? d.net / d.hariAktif : 0))}</tr>`;
+  const ket = document.getElementById("rv6IvtaminsKet");
+  if (!ada) {
+    ket.textContent = "Highlight IVtamins belum bisa dihitung — snapshot ini ditulis SEBELUM fitur ditambahkan. Jalankan ulang perbaikan snapshot (atau tunggu snapshot malam berikutnya) supaya terisi.";
     ket.classList.remove("hidden");
   } else ket.classList.add("hidden");
 }
